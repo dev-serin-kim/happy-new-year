@@ -7,32 +7,42 @@ rule; this file holds values and points at the contract that owns each element.
 
 Source: `app/globals.css`. Update this section when that source changes.
 
-| Token | Light | Dark |
-| --- | --- | --- |
-| `background` | `oklch(1 0 0)` | `oklch(0.145 0 0)` |
-| `foreground` | `oklch(0.145 0 0)` | `oklch(0.985 0 0)` |
-| `card` | `oklch(1 0 0)` | `oklch(0.205 0 0)` |
-| `primary` | `oklch(0.205 0 0)` | `oklch(0.922 0 0)` |
-| `primary-foreground` | `oklch(0.985 0 0)` | `oklch(0.205 0 0)` |
-| `secondary` | `oklch(0.97 0 0)` | `oklch(0.269 0 0)` |
-| `muted` | `oklch(0.97 0 0)` | `oklch(0.269 0 0)` |
-| `muted-foreground` | `oklch(0.556 0 0)` | `oklch(0.708 0 0)` |
-| `accent` | `oklch(0.97 0 0)` | `oklch(0.269 0 0)` |
-| `destructive` | `oklch(0.577 0.245 27.325)` | `oklch(0.704 0.191 22.216)` |
-| `border` | `oklch(0.922 0 0)` | `oklch(1 0 0 / 10%)` |
-| `input` | `oklch(0.922 0 0)` | `oklch(1 0 0 / 15%)` |
-| `ring` | `oklch(0.708 0 0)` | `oklch(0.556 0 0)` |
+One look only, no dark theme.
 
-Radius: `--radius` `0.625rem`.
+| Token | Value |
+| --- | --- |
+| `background` | `#1d1816` (ink table) |
+| `foreground` | `#f3ece0` |
+| `card` | `#f8f1e4` (cream paper) |
+| `card-foreground` | `#1d1816` |
+| `primary` | `#c8322b` (vermilion red) |
+| `primary-foreground` | `#f8f1e4` |
+| `secondary` | `#2a2320` |
+| `muted` | `#2c2522` |
+| `muted-foreground` | `#a89a8c` |
+| `accent` | `#2f5bd3` (small ornaments only) |
+| `destructive` | `#e0574f` |
+| `border` | `#3a312d` |
+| `input` | `#d6c8b3` |
+| `ring` | `rgb(200 50 43 / 45%)` |
+| `maroon` / `cream` / `ink` / `pink` | `#5b2219` / `#f3ead9` / `#1d1816` / `#f2a7b9` |
+
+Fonts: Gloock (`--font-gloock`, Latin and numerals) and Pretendard (Hangul and body).
+Core surfaces (stamps, postcards, envelopes, postbox, letter pile) live in `app/postcard.css`.
+
+Radius: `--radius` `0.375rem`.
 
 ## Components
 
 Source: `components/ui/`. Update this section when it changes.
 
-- `Button`
+- `AlertDialog`
+- `Button` (adds `postal`, `postal-secondary`, `postal-danger` variants)
 - `Card`
 - `Input`
 - `Label`
+- `Sonner` (toasts)
+- `Tabs`
 
 ## Rejected patterns
 

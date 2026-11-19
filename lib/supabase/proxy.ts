@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { isMailboxOwnerEmail } from '@/lib/mailbox/owner'
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -38,14 +40,24 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims()
   const user = data?.claims
 
-  // Only /settings requires a signed-in user. Everything else stays public.
+  // Serin's mailbox opens only for MAILBOX_EMAIL; /mailbox/open is its sign-in.
+  // Pages and server actions check again; this only routes people.
   const { pathname } = request.nextUrl
-  if (!user && (pathname === '/settings' || pathname.startsWith('/settings/'))) {
+  const isOwner = isMailboxOwnerEmail(user?.email, process.env.MAILBOX_EMAIL)
+  const redirectTo = (path: string) => {
     const url = request.nextUrl.clone()
-    url.pathname = '/auth/login'
+    url.pathname = path
     url.search = ''
-    url.searchParams.set('next', pathname)
-    return NextResponse.redirect(url)
+    const response = NextResponse.redirect(url)
+    supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie))
+    return response
+  }
+  if (pathname === '/mailbox/open') {
+    if (isOwner) return redirectTo('/mailbox')
+  } else if (pathname === '/mailbox' || pathname.startsWith('/mailbox/')) {
+    if (!isOwner) return redirectTo('/mailbox/open')
+  } else if (!user && (pathname === '/settings' || pathname.startsWith('/settings/'))) {
+    return redirectTo('/mailbox/open')
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.

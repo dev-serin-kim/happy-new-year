@@ -8,7 +8,7 @@ export default async function SettingsPage() {
 
   const { data: claims } = await supabase.auth.getClaims()
   if (!claims?.claims) {
-    redirect('/auth/login?next=/settings')
+    redirect('/mailbox/open')
   }
 
   const { data: profile } = await supabase
@@ -18,7 +18,7 @@ export default async function SettingsPage() {
     .single()
 
   if (!profile) {
-    redirect('/auth/login?next=/settings')
+    redirect('/mailbox/open')
   }
 
   return (

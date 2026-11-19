@@ -1,0 +1,1170 @@
+<!--
+  prototype shell: the review chrome every prototype starts from.
+
+  Keep this comment in the prototype you grow from here: it is the contract,
+  and later turns work from that file rather than from this one.
+
+  Contract (extend product screens; keep the review shell):
+  - Product:  .sh-stage contains only end-user product UI. Keep review notes,
+               rationale, instructions, and approval controls in conversation.
+  - Screens:  <section data-screen="slug" data-title="Label"> inside .sh-stage.
+               The selector, arrow keys, and #hash routing build themselves.
+               Use one option per product destination or distinct surface,
+               named by its product role. Keep baselines, variants, comparison
+               labels, steps, indexes, and progress out of names and states.
+               Links may use href="#slug".
+  - States:   "Default" is automatic. A screen declares only representative
+               presets in data-states="Empty,Error". Use natural, screen-specific
+               names. Reserve presets for important multi-step results, forced
+               data or errors, or materially different structure; keep one-click
+               and transient states as interactions. Use data-when="Empty" on
+               preset-only elements. Call prototypeShell.setState("Name") on
+               entry and setState("Default") on exit, including when repeated
+               actions cross a preset condition.
+  - Viewport: "vp (m)" cycles full / 390 / 768. The 390 preset is a
+               fixed-height, internally scrolling phone frame. Start a
+               mobile-first prototype by adding class="sh-vp-390" to <body>
+               (or a bootstrap classList.add before the chrome script runs).
+  - Pinning:  keep in-frame bars (tab bars, CTAs) inside the phone with
+               position: sticky; position: fixed pins to the browser window.
+  - Tokens:   replace the project-tokens block with project tokens copied
+               verbatim. Map differing names to --background, --foreground, and
+               --font afterwards; replace network fonts with a system stack and
+               note that substitution. Without a design system, keep this
+               palette as the finished style. When the project ships dark
+               tokens, copy them under .sh-theme-dark, which the shell sets
+               on both the root element and body, so :root.sh-theme-dark and
+               body.sh-theme-dark work too. A .dark class or a
+               prefers-color-scheme media query copied verbatim would follow
+               the reviewer's system instead of the toggle.
+  - Theme:    the light / dark switch (t) changes the product surface only.
+               It appears only when a .sh-theme-dark rule declares dark tokens,
+               so a prototype without them carries no theme control. Prototypes
+               always load light; the review bar keeps its own dark styling in
+               both themes so it still reads as chrome.
+  - Placeholders: .wf-pic stands in for pictures the prototype has no real
+               files for. Use real text everywhere text belongs.
+
+  - Chrome:   Keep exactly the screen selector, selected-screen state selector,
+               viewport cycle, and theme toggle.
+
+  Self-contained by design: no build, no framework, no network.
+  (Exception approved during review: the chosen web fonts — Gloock (English display)
+   and Pretendard (Korean and body) — load from Google Fonts / jsDelivr, because
+   the type decision cannot be judged with a substitute.)
+-->
+<meta charset="utf-8">
+<title>붉은 양의 연하장 · Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gloock&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  /* ── project tokens: shadcn semantic names (app/globals.css), values for the
+        "red sheep · stamps & postcards on a dark table" direction. One look
+        only: the dark table is the product surface, not a dark mode. ── */
+  :root {
+    --background: #1d1816;
+    --foreground: #f3ece0;
+    --card: #f8f1e4;
+    --card-foreground: #1d1816;
+    --primary: #c8322b;
+    --primary-foreground: #f8f1e4;
+    --secondary: #2a2320;
+    --secondary-foreground: #f3ece0;
+    --muted: #2c2522;
+    --muted-foreground: #a89a8c;
+    --accent: #2f5bd3;
+    --destructive: #e0574f;
+    --border: #3a312d;
+    --input: #d6c8b3;
+    --ring: rgb(200 50 43 / 45%);
+    --radius: 0.375rem;
+    --maroon: #5b2219;
+    --cream: #f3ead9;
+    --ink: #1d1816;
+    --pink: #f2a7b9;
+    --font: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", sans-serif;
+    --font-display: "Gloock", "Pretendard Variable", sans-serif; /* Gloock has no Hangul, so Korean falls through to Pretendard */
+    --font-letter: "Pretendard Variable", Pretendard, sans-serif;
+    --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.08  0 0 0 0 0.06  0 0 0 .14 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  /* ── review chrome (sh-*): keep; extend product styles elsewhere ── */
+  * { box-sizing: border-box }
+  body {
+    margin: 0; padding: 0 0 40px;
+    background: var(--background, #f6f6f6); color: var(--foreground, #3a3a3a);
+    font-family: var(--font, system-ui, sans-serif);
+  }
+  .sh-bar {
+    position: sticky; top: 0; z-index: 999;
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 8px 12px; background: #191a1c; color: #d7d7d7;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .sh-bar b, .sh-control-label { color: #8a8f98; font-weight: 500 }
+  .sh-control { display: inline-flex; gap: 5px; align-items: center }
+  .sh-bar button {
+    border: 1px solid #3a3d42; background: none; color: inherit;
+    font: inherit; padding: 2px 9px; border-radius: 99px; cursor: pointer;
+  }
+  .sh-bar select {
+    width: 170px; border: 1px solid #3a3d42; background: #232428; color: inherit;
+    font: inherit; padding: 3px 28px 3px 9px; border-radius: 7px; cursor: pointer;
+    color-scheme: dark;
+  }
+  #sh-screen { width: 190px }
+  .sh-bar button.on { background: #d7d7d7; color: #191a1c; border-color: #d7d7d7 }
+  .sh-theme { display: inline-flex; border: 1px solid #3a3d42; border-radius: 99px; overflow: hidden }
+  .sh-theme button { border: 0; border-radius: 0; padding: 2px 10px }
+  .sh-spacer { flex: 1 }
+  .sh-stage { max-width: 960px; margin: 0 auto; padding: 12px 16px 0 }
+  [hidden] { display: none !important }
+
+  /* viewport presets */
+  .sh-vp-390 .sh-stage {
+    max-width: 390px; background: var(--background, #f6f6f6);
+    border: 10px solid #191a1c; border-radius: 28px;
+    padding: 16px 12px; height: min(844px, calc(100dvh - 52px));
+    overflow-y: auto; margin-top: 12px;
+  }
+  .sh-vp-768 .sh-stage {
+    max-width: 768px; border: 1px solid #c4c4c4; border-radius: 12px;
+    padding: 16px; margin-top: 12px;
+  }
+
+  /* placeholders */
+  .wf-pic  { border-radius: 4px; background:
+             repeating-linear-gradient(45deg, #e9e9e9, #e9e9e9 6px, #f2f2f2 6px, #f2f2f2 12px) }
+
+  /* ───────────────────────── product styles ───────────────────────── */
+  /* display type: Gloock for Latin/numerals, Pretendard Bold for Hangul (no faux bold on Gloock) */
+  .topbar h1, .denom-name, .l-title, .ticket b, .big-title, .empty h3, .dialog h3, .owner-sum b, .postmark-big b, .env-caption, .stamp-num, .arc-text { font-family: var(--font-display) !important; font-weight: 700 !important; font-synthesis: none; letter-spacing: -0.01em; }
+  .pc-msg { font-size: 15.5px !important; }
+  .mini-pc .pc-msg { font-size: 13px !important; }
+  .pc-hny { font-family: "Gloock", serif !important; }
+  .sh-stage { position: relative; background-image: var(--grain); }
+  .sh-vp-390 .sh-stage { padding: 0; border-color: #0e0d0d; }
+  .app { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; position: relative; padding: 0 16px 28px; }
+
+  .topbar { display: flex; align-items: center; gap: 6px; height: 56px; margin: 0 -6px; }
+  .topbar h1 { font-family: var(--font-display); font-weight: 400; font-size: 21px; margin: 0; flex: 1; letter-spacing: -0.01em; }
+  .back { width: 40px; height: 40px; display: grid; place-items: center; color: var(--foreground); text-decoration: none; font-size: 20px; border-radius: 50%; }
+  .back:active { background: var(--muted); }
+  .muted { color: var(--muted-foreground); }
+  .lead { font-size: 14px; line-height: 1.65; color: var(--muted-foreground); margin: 0; }
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+  .center { text-align: center; }
+
+  /* sheep variants */
+  .sheep { display: block; overflow: visible; }
+  .sheep-cream { color: #f7efe2; --sheep-detail: #1d1816; --sheep-star: #1d1816; --sheep-ribbon: var(--pink); --sheep-horn: #c89a46; }
+  .sheep-red   { color: var(--primary); --sheep-detail: #6e1a14; --sheep-star: rgb(248 241 228 / 70%); --sheep-ribbon: transparent; --sheep-horn: #6e1a14; }
+  .sheep-ghost { color: rgb(200 50 43 / 28%); --sheep-detail: transparent; --sheep-star: transparent; --sheep-ribbon: transparent; --sheep-horn: rgb(200 50 43 / 28%); }
+  .sheep-silver { color: #c9cdd3; --sheep-detail: #8d939b; --sheep-star: #f4f5f7; --sheep-ribbon: transparent; --sheep-horn: #e9ebee;
+                  filter: drop-shadow(-1px -1px 0 rgb(255 255 255 / 70%)) drop-shadow(1px 1.5px 0 rgb(60 20 15 / 45%)); }
+
+  /* motion */
+  @keyframes dropIn { from { opacity: 0; transform: translateY(-40px) scale(1.06) } }
+  @keyframes hop { 0%,100% { transform: translateY(0) } 35% { transform: translateY(-18px) rotate(-4deg) } 60% { transform: translateY(0) } 75% { transform: translateY(-6px) } }
+  @keyframes bobble { 0%,100% { transform: translateY(0) rotate(0) } 50% { transform: translateY(-6px) rotate(-1.5deg) } }
+  @keyframes twinkle { 0%,100% { transform: scale(.5) rotate(0); opacity: .3 } 50% { transform: scale(1) rotate(45deg); opacity: 1 } }
+  @keyframes shake { 0%,100% { transform: translateX(0) } 20% { transform: translateX(-7px) rotate(-1deg) } 40% { transform: translateX(6px) rotate(1deg) } 60% { transform: translateX(-4px) } 80% { transform: translateX(3px) } }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
+  @keyframes thunk { 0% { transform: scale(2.4) rotate(-30deg); opacity: 0 } 55% { transform: scale(.9) rotate(-12deg); opacity: 1 } 100% { transform: scale(1) rotate(-12deg); opacity: 1 } }
+  @keyframes fadeIn { from { opacity: 0 } }
+  .rise { animation: rise .6s cubic-bezier(.2,.8,.2,1) both; }
+  .d1 { animation-delay: .08s } .d2 { animation-delay: .16s } .d3 { animation-delay: .24s }
+  .sparkle { position: absolute; width: 18px; height: 18px; animation: twinkle 2.6s ease-in-out infinite; pointer-events: none; }
+
+  /* stamps */
+  .stamp { --c: var(--primary); --hole: 5px; --tile: 16px; display: block; padding: 9px;
+           background: radial-gradient(circle, transparent var(--hole), var(--c) calc(var(--hole) + .6px)) calc(var(--tile) / -2) calc(var(--tile) / -2) / var(--tile) var(--tile); }
+  .stamp.sm { --hole: 2.3px; --tile: 7px; padding: 4px; }
+  .stamp-in { background: var(--c); background-image: var(--grain); height: 100%; position: relative; display: flex; flex-direction: column; color: #f7efe2; }
+  .stamp.sm .stamp-in { padding: 3px; justify-content: center; align-items: center; }
+  .stamp.sm .sheep { width: 100%; }
+  .stamp-num { display: flex; justify-content: space-between; font-family: var(--font-display); }
+
+  /* ── home: stamp + letter pile ── */
+  .home { padding: 14px 14px 0; height: calc(100vh - 80px); min-height: 720px; overflow: hidden; }
+  .sh-vp-390 .home { height: calc(min(844px, 100dvh - 52px) - 20px); min-height: 0; }
+  .hero-stamp { position: relative; flex: 1; min-height: 0; margin: 4px 6px 0; filter: drop-shadow(0 18px 24px rgb(0 0 0 / 60%)); animation: dropIn .8s cubic-bezier(.2,.9,.3,1.15) both; cursor: pointer; }
+  .hero-stamp .stamp-in { padding: 18px 20px 14px; }
+  .fs-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .fs-word { font-size: 15px; font-weight: 800; letter-spacing: .22em; color: #f7efe2; }
+  .fs-owner { font-size: 10.5px; letter-spacing: .04em; font-weight: 600; color: rgb(247 239 226 / 45%); text-decoration: none; }
+  .fs-sheep { position: relative; display: block; margin: auto 0; }
+  .fs-sheep .sheep { width: 92%; margin: 0 auto; animation: bobble 4s ease-in-out infinite; transform-origin: 50% 95%; }
+  .hero-stamp.hopping .fs-sheep .sheep { animation: hop .8s ease-out; }
+  .hero-stamp .stamp-num { font-size: 30px; color: #f7efe2; }
+  .fs-tag { font-size: 10.5px; font-weight: 700; letter-spacing: .26em; color: rgb(247 239 226 / 70%); }
+  .hero-art { display: block; width: 100%; overflow: visible; }
+  .arc-text { fill: #f7efe2; font-family: var(--font-display); font-size: 25px; letter-spacing: .04em; }
+  .arc-sheep { animation: bobble 4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 95%; }
+  .hero-stamp.hopping .arc-sheep { animation: hop .8s ease-out; }
+  .hero-meta { display: flex; justify-content: flex-end; align-items: baseline; font-size: 12px; color: rgb(247 239 226 / 75%); margin-bottom: 4px; }
+
+  .pile { position: relative; height: 262px; flex: none; margin: 0 -2px; }
+  .letter { position: absolute; left: 0; right: 0; display: block; text-decoration: none; cursor: pointer; padding: 14px 18px; box-shadow: 0 -6px 18px -6px rgb(0 0 0 / 55%); transition: transform .35s cubic-bezier(.3,1.4,.5,1); }
+  .letter .l-title { font-family: var(--font-display); font-size: 22px; letter-spacing: -0.01em; display: flex; justify-content: space-between; align-items: center; }
+  .letter .l-sub { font-size: 12px; margin-top: 2px; opacity: .75; }
+  .letter .l-count { font-family: var(--font); font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
+  .letter:hover, .letter:focus-visible { transform: translateY(-8px) rotate(var(--rot)); }
+  .l-secret { top: 0; height: 200px; --rot: 2.5deg; transform: rotate(2.5deg); background: var(--maroon); background-image: var(--grain); color: #f3ece0; }
+  .l-secret .wax-seal { position: absolute; right: 18px; top: 8px; width: 48px; height: 48px; filter: drop-shadow(0 2px 2px rgb(0 0 0 / 35%)); }
+  .l-secret .seal { position: absolute; right: 22px; top: 12px; width: 38px; height: 38px; border-radius: 50%; background: var(--primary); display: grid; place-items: center; box-shadow: 0 2px 0 #7b1a15; }
+  .l-secret .seal svg { width: 16px; color: #f3ece0; }
+  .l-open { top: 70px; height: 200px; --rot: -2deg; transform: rotate(-2deg); background: var(--primary); background-image: var(--grain); color: #f8f1e4; }
+  .l-open .l-count { background: #f8f1e4; color: var(--primary); }
+  .l-open::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 70px; background: linear-gradient(to bottom right, transparent 49.5%, rgb(0 0 0 / 12%) 50%, transparent 50.5%) left/50% 100% no-repeat, linear-gradient(to bottom left, transparent 49.5%, rgb(0 0 0 / 12%) 50%, transparent 50.5%) right/50% 100% no-repeat; pointer-events: none; }
+  .l-write { top: 140px; height: 200px; --rot: -.5deg; transform: rotate(-.5deg); background: var(--card); background-image: var(--grain); color: var(--ink); animation: nudge 4s 1.5s ease-in-out infinite; }
+  .l-write .l-title { color: var(--ink); }
+  .l-write .l-to { font-size: 10.5px; letter-spacing: .24em; font-weight: 800; color: var(--primary); text-transform: uppercase; margin-bottom: 4px; }
+  .l-write .l-lines { height: 46px; margin-top: 6px; width: 64%; background: repeating-linear-gradient(transparent 0 22px, rgb(29 24 22 / 18%) 22px 23px); }
+  .l-write .l-sheep { position: absolute; right: 16px; top: 26px; width: 84px; }
+  @keyframes nudge { 0%, 80%, 100% { transform: rotate(-.5deg) } 88% { transform: rotate(-1.5deg) translateY(-12px) } }
+  .letter.pulled { animation: pull .6s cubic-bezier(.5,0,.6,1) forwards !important; z-index: 20; }
+  @keyframes pull { 0% { transform: rotate(var(--rot)) } 30% { transform: rotate(calc(var(--rot) * -1)) translateY(8px) } 100% { transform: rotate(6deg) translateY(-520px) scale(1.05); opacity: .2 } }
+  .pile.pulling .letter:not(.pulled) { filter: brightness(.55); transition: filter .3s; }
+
+  /* ── postcard back ── */
+  .pc { position: relative; display: block; background: var(--card); background-image: var(--grain); color: var(--card-foreground); padding: 16px 16px 46px; box-shadow: 0 16px 30px -14px rgb(0 0 0 / 75%); }
+  .pc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .pc-to { font-size: 10.5px; letter-spacing: .24em; font-weight: 800; text-transform: uppercase; color: var(--primary); padding-top: 4px; }
+  .pc-corner { display: flex; gap: 8px; align-items: flex-start; }
+  .pc-hny { font-family: var(--font-letter); color: var(--primary); font-size: 12.5px; line-height: 1.05; text-align: right; padding-top: 2px; }
+  .pc-stamp { width: 46px; height: 56px; flex: none; }
+  .pc-slot { width: 46px; height: 56px; flex: none; border: 1.5px dashed rgb(29 24 22 / 30%); display: grid; place-items: center; font-size: 9px; color: rgb(29 24 22 / 45%); text-align: center; line-height: 1.3; }
+  .pc-msg { font-family: var(--font-letter); font-size: 17px; line-height: 30px; margin: 12px 0 4px; min-height: 120px;
+            background: repeating-linear-gradient(to bottom, transparent 0 29px, rgb(29 24 22 / 17%) 29px 30px); background-attachment: local;
+            white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+  .pc-from { font-family: var(--font-letter); font-size: 16px; text-align: right; }
+  .pc-parade { position: absolute; left: 16px; right: 16px; bottom: 12px; display: flex; justify-content: space-between; pointer-events: none; }
+  .pc-parade .sheep { width: 30px; }
+  .pc-postmark { position: absolute; right: 54px; top: 26px; width: 58px; height: 58px; border-radius: 50%; border: 1.5px solid rgb(29 24 22 / 28%); color: rgb(29 24 22 / 40%); display: grid; place-items: center; font-size: 7.5px; letter-spacing: .14em; font-weight: 800; text-align: center; line-height: 1.5; transform: rotate(-12deg); pointer-events: none; }
+  .pc-postmark.secret { border-color: rgb(200 50 43 / 55%); color: rgb(200 50 43 / 70%); }
+  .pc.reply { background-color: #fdf8ef; outline: 1.5px solid var(--primary); outline-offset: -7px; }
+  .pc.reply .pc-to { color: var(--ink); }
+  .pc.waiting { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; }
+  .pc.waiting .sheep { width: 84px; animation: bobble 3s ease-in-out infinite; }
+  .pc.waiting p { margin: 0; font-family: var(--font-letter); font-size: 16px; }
+  .pc.waiting span { font-size: 12px; color: #7a6c62; }
+
+  .mini-pc .pc { padding: 12px 12px 34px; }
+  .mini-pc .pc-msg { font-size: 14px; line-height: 24px; min-height: 72px; margin-top: 8px; background-image: repeating-linear-gradient(to bottom, transparent 0 23px, rgb(29 24 22 / 17%) 23px 24px); }
+  .mini-pc .pc-stamp { width: 30px; height: 37px; }
+  .mini-pc .pc-hny, .mini-pc .pc-postmark { display: none; }
+  .mini-pc .pc-from { font-size: 13.5px; }
+  .mini-pc .pc-parade { bottom: 8px; left: 12px; right: 12px; }
+  .mini-pc .pc-parade .sheep { width: 18px; }
+  .mini-pc .pc-to { font-size: 9px; }
+  .mini-pc .pc.waiting .sheep { width: 56px; }
+  .mini-pc .pc.waiting p { font-size: 13.5px; }
+
+  /* flip */
+  .flip { perspective: 1100px; cursor: pointer; }
+  .flip-inner { display: grid; transition: transform .75s cubic-bezier(.3,1.25,.5,1); transform-style: preserve-3d; }
+  .flip-inner > * { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; display: grid; }
+  .flip.flipped .flip-inner { transform: rotateY(180deg); }
+  .flip-back { transform: rotateY(180deg); }
+  .flip-meta { font-size: 12px; color: var(--muted-foreground); display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; border-radius: 99px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+  .chip-red { background: var(--primary); color: var(--primary-foreground); }
+  .chip-line { color: var(--muted-foreground); box-shadow: inset 0 0 0 1px #4a3f3a; }
+  .chip-cream { background: var(--cream); color: var(--ink); }
+
+  /* perforated ticket = primary action */
+  .ticket { --c: var(--primary); --notch: var(--background); appearance: none; border: 0; font: inherit; cursor: pointer; text-decoration: none; display: flex; align-items: center; justify-content: space-between;
+            width: 100%; height: 60px; padding: 0 22px; color: #f7efe2; position: relative; background-color: var(--c);
+            background-image: radial-gradient(circle at 0 50%, var(--notch) 9px, transparent 9.5px), radial-gradient(circle at 100% 50%, var(--notch) 9px, transparent 9.5px), var(--grain);
+            transition: transform .15s; }
+  .ticket::after { content: ""; position: absolute; right: 64px; top: 10px; bottom: 10px; border-left: 2px dashed rgb(247 239 226 / 45%); }
+  .ticket b { font-family: var(--font-display); font-weight: 400; font-size: 20px; letter-spacing: -0.01em; }
+  .ticket span { font-size: 20px; width: 30px; text-align: center; }
+  .ticket:active { transform: translateY(2px) rotate(-.4deg); }
+  .ticket[disabled] { opacity: .4; pointer-events: none; }
+  .ticket.cream { --c: var(--cream); color: var(--ink); }
+  .ticket.cream::after { border-color: rgb(29 24 22 / 30%); }
+  .ticket.sm { height: 48px; } .ticket.sm b { font-size: 16px; }
+  /* CTA v2: rounded postal button with stitched inner edge */
+  .ticket { border-radius: 14px; background-image: var(--grain) !important; justify-content: center; gap: 10px; height: 58px; padding: 0 24px;
+            box-shadow: 0 12px 22px -12px rgb(200 50 43 / 75%), inset 0 1px 0 rgb(255 255 255 / 14%); }
+  .ticket::after { inset: 5px; right: 5px; top: 5px; bottom: 5px; border: 1.5px dashed rgb(247 239 226 / 38%); border-radius: 10px; pointer-events: none; }
+  .ticket b { font-size: 17px; }
+  .ticket span { width: auto; font-size: 17px; transition: transform .2s; }
+  .ticket:hover span, .ticket:focus-visible span { transform: translateX(4px); }
+  .ticket:active { transform: translateY(1px) scale(.99); }
+  .ticket.cream { box-shadow: 0 12px 22px -12px rgb(0 0 0 / 60%); }
+  .ticket.cream::after { border-color: rgb(29 24 22 / 25%); }
+  .ticket.sm { height: 50px; }
+  /* CTA v3 (B1): cream pill, ink label, red arrow */
+  .ticket { background-color: var(--cream) !important; color: var(--ink) !important; border-radius: 999px; box-shadow: 0 12px 22px -14px rgb(0 0 0 / 70%); }
+  .ticket::after { display: none; }
+  .ticket span { color: var(--primary); font-family: "Gloock", serif; font-size: 19px; }
+  .ticket.danger { background-color: #b3261e !important; color: #fbf2e6 !important; } .ticket.danger span { color: #fbf2e6; }
+
+  /* screens that fill the phone and keep the action near the thumb */
+  .sh-stage > section:not([hidden]) { min-height: 100%; display: flex; flex-direction: column; }
+  .fill { flex: 1; width: 100%; }
+  body:not(.sh-vp-390):not(.embed) .fill { min-height: calc(100vh - 70px); }
+  .grow { flex: 1; min-height: 16px; }
+  .text-link { background: none; border: 0; font: inherit; color: var(--foreground); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgb(243 236 224 / 35%); cursor: pointer; font-size: 13.5px; padding: 8px 0; }
+
+  .label { font-size: 12.5px; font-weight: 700; letter-spacing: .04em; color: var(--muted-foreground); margin-bottom: 8px; display: block; }
+  .line-input { font: inherit; font-family: var(--font-letter); font-size: 17px; background: transparent; border: 0; border-bottom: 1.5px solid rgb(29 24 22 / 35%); padding: 2px 2px 3px; color: var(--ink); outline: none; width: 7.5em; text-align: right; border-radius: 0; }
+  .line-input:focus { border-bottom-color: var(--primary); }
+  .line-input::placeholder { color: rgb(29 24 22 / 35%); }
+  .pc textarea { display: block; width: 100%; border: 0; outline: none; resize: none; color: var(--ink); background-color: transparent; padding: 0; height: 150px; }
+  .pc textarea::placeholder { color: rgb(29 24 22 / 38%); }
+  .err-line { font-size: 12.5px; color: #ff8d86; min-height: 18px; margin-top: 8px; }
+  .field-dark { display: flex; flex-direction: column; }
+  .field-dark input { font: inherit; font-size: 16px; width: 100%; background: var(--card); color: var(--ink); border: 0; border-radius: var(--radius); padding: 13px 14px; outline: none; box-shadow: inset 0 0 0 1.5px transparent; transition: box-shadow .15s; }
+  .field-dark input:focus { box-shadow: inset 0 0 0 2px var(--primary); }
+
+  .stamp-picker { display: flex; gap: 12px; }
+  .stamp-opt { appearance: none; border: 0; background: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; font: inherit; font-size: 11.5px; color: var(--muted-foreground); flex: 1; transition: transform .2s; }
+  .stamp-opt .stamp { width: 100%; aspect-ratio: 5 / 6; }
+  .stamp-opt[aria-checked="true"] { color: var(--foreground); transform: translateY(-5px); }
+  .stamp-opt[aria-checked="true"] .stamp { filter: drop-shadow(0 6px 8px rgb(0 0 0 / 60%)); }
+  .stamp-fly { position: absolute; z-index: 30; pointer-events: none; transition: all .5s cubic-bezier(.4,1.4,.5,1); }
+
+  .vis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .vis button { appearance: none; border: 0; background: none; padding: 0; cursor: pointer; display: flex; align-items: center; gap: 10px; color: var(--muted-foreground); font: inherit; text-align: left; }
+  .vis .pm { width: 52px; height: 52px; flex: none; border-radius: 50%; border: 1.5px dashed #5a4e48; display: grid; place-items: center; font-size: 8px; font-weight: 800; letter-spacing: .14em; line-height: 1.4; text-align: center; transform: rotate(-10deg); transition: all .25s; }
+  .vis b { display: block; font-size: 14px; color: var(--foreground); }
+  .vis small { font-size: 11.5px; }
+  .vis button[aria-checked="true"] .pm { border: 2px solid var(--primary); color: var(--primary); background: rgb(200 50 43 / 10%); animation: thunk .35s both; }
+  .birth { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .3s ease, opacity .3s; }
+  .birth.closed { grid-template-rows: 0fr; opacity: 0; }
+  .birth > div { overflow: hidden; }
+
+  /* envelope send overlay */
+  .overlay { position: absolute; left: 0; right: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgb(14 12 11 / 94%); background-image: var(--grain); }
+  .env-scene { position: relative; width: 250px; height: 330px; }
+  .env-group { position: absolute; left: 10px; top: 150px; width: 230px; height: 150px; }
+  .env-back { position: absolute; inset: 0; background: #a9241f; }
+  .env-letter { position: absolute; left: 14px; right: 14px; top: -120px; height: 140px; }
+  .env-letter .pc { height: 100%; padding: 10px; box-shadow: none; }
+  .env-letter .pc-msg { min-height: 0; height: 90px; font-size: 13px; line-height: 22px; margin-top: 6px; overflow: hidden; background-image: repeating-linear-gradient(to bottom, transparent 0 21px, rgb(29 24 22 / 17%) 21px 22px); }
+  .env-front { position: absolute; inset: 0; background: var(--primary); background-image: var(--grain); clip-path: polygon(0 0, 50% 58%, 100% 0, 100% 100%, 0 100%); z-index: 3; }
+  .env-flap { position: absolute; left: 0; right: 0; top: 0; height: 96px; background: #b72c26; clip-path: polygon(0 0, 100% 0, 50% 100%); transform-origin: top; transform: rotateX(180deg); z-index: 0; }
+  .env-seal { position: absolute; left: 50%; top: 66px; width: 46px; height: 56px; margin-left: -23px; z-index: 5; opacity: 0; }
+  .env-caption { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; color: #f3ece0; font-family: var(--font-display); font-size: 18px; opacity: 0; }
+  .sending .env-letter { animation: tuck .9s .15s cubic-bezier(.5,0,.3,1) forwards; }
+  .sending .env-flap { animation: closeFlap .4s 1s ease-in forwards; }
+  .sending .env-seal { animation: thunk .45s 1.35s forwards; }
+  .sending .env-group { animation: fly .9s 1.95s cubic-bezier(.6,-0.4,.4,1) forwards; }
+  .sending .env-caption { animation: rise .4s .2s forwards; }
+  @keyframes tuck { to { transform: translateY(126px) } }
+  @keyframes closeFlap { 0% { transform: rotateX(180deg); z-index: 0 } 49% { z-index: 0 } 50% { z-index: 4 } 100% { transform: rotateX(0); z-index: 4 } }
+  @keyframes fly { 0% { transform: none } 25% { transform: translateY(16px) rotate(-5deg) } 100% { transform: translate(90px, -560px) rotate(22deg) scale(.45); opacity: 0 } }
+
+  .burst { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+  .burst svg { position: absolute; width: 16px; height: 16px; top: 34%; left: 50%; animation: confetti 1.6s cubic-bezier(.2,.7,.4,1) forwards; }
+  @keyframes confetti { 0% { transform: translate(0,0) rotate(0) scale(.4); opacity: 1 } 100% { transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(1); opacity: 0 } }
+
+  /* sent */
+  .sent-stamp { width: 200px; height: 240px; margin: 28px auto 0; animation: dropIn .7s cubic-bezier(.2,.9,.3,1.2) both; position: relative; }
+  .sent-stamp .stamp-in { padding: 16px; justify-content: space-between; }
+  .postmark-big { position: absolute; right: -56px; top: 92px; width: 164px; height: 118px; color: rgb(250 244 234 / 96%); opacity: 0; animation: thunk .4s .75s forwards; }
+  .pm-ring { font-size: 9.6px; font-weight: 800; letter-spacing: .14em; fill: currentColor; font-family: var(--font); }
+  .pm-hny { font-family: "Gloock", serif; font-size: 15px; fill: currentColor; }
+  .pm-year { font-family: "Gloock", serif; font-size: 8.5px; letter-spacing: .1em; fill: currentColor; }
+  .pm-sub { font-size: 8.5px; font-weight: 700; letter-spacing: .1em; fill: currentColor; font-family: var(--font); }
+  .pile.two { height: 104px; margin: 0 -2px -28px; text-align: left; }
+  .pile.two .letter { height: 150px; }
+  .pile.two .l-open, .pile.two .l-secret { top: 0; }
+  .pile.two .l-back { top: 66px; --rot: -1deg; transform: rotate(-1deg); background: var(--card); background-image: var(--grain); color: var(--ink); }
+  [data-screen="sent"] { overflow: hidden; }
+  .big-title { font-family: var(--font-display); font-weight: 400; font-size: 28px; margin: 0; letter-spacing: -0.01em; line-height: 1.25; }
+
+  /* lookup envelope */
+  .lk-env { position: relative; aspect-ratio: 340 / 285; margin-top: 10px; color: var(--ink); filter: drop-shadow(0 16px 18px rgb(0 0 0 / 55%)); perspective: 800px; }
+  .env-back-art { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .env-flap-art { position: absolute; left: 0; top: 0; width: 100%; height: 46%; transform-origin: top; filter: drop-shadow(0 3px 3px rgb(29 24 22 / 18%)); transition: transform .5s cubic-bezier(.4,0,.2,1); z-index: 2; }
+  .lk-wax { position: absolute; left: 50%; top: 46%; width: 60px; height: 60px; margin: -40px 0 0 -30px; z-index: 3; filter: drop-shadow(0 3px 2px rgb(0 0 0 / 30%)); }
+  .lk-label { position: absolute; left: 8%; right: 8%; bottom: 6%; z-index: 4; background: #fbf7ef; padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px; outline: 1px solid rgb(200 50 43 / 45%); outline-offset: -4px; box-shadow: 0 2px 4px rgb(0 0 0 / 12%); }
+  .lk-row { display: flex; align-items: baseline; gap: 10px; }
+  .lk-row span { font-size: 10px; letter-spacing: .22em; font-weight: 800; color: var(--primary); width: 72px; flex: none; }
+  .lk-row .line-input { flex: 1; min-width: 0; text-align: left; width: auto; font-size: 15.5px; }
+  .lk-env.denied { animation: shake .45s; }
+  .lk-env.opening .lk-wax { animation: sealPop .45s forwards; }
+  .lk-env.opening .env-flap-art { transform: rotateX(180deg); transition-delay: .3s; z-index: 0; }
+  @keyframes sealPop { 40% { transform: scale(1.2) } 100% { transform: scale(0) rotate(90deg); opacity: 0 } }
+
+  /* owner */
+  .owner-sum { display: flex; gap: 10px; margin: 6px 0 18px; }
+  .owner-sum > div { flex: 1; padding: 12px 14px; background: var(--muted); }
+  .owner-sum b { font-family: var(--font-display); font-weight: 400; font-size: 30px; display: block; line-height: 1.1; }
+  .owner-sum span { font-size: 12px; color: var(--muted-foreground); }
+  .owner-sum .hot { background: var(--primary); background-image: var(--grain); }
+  .owner-sum .hot span { color: rgb(247 239 226 / 80%); }
+  .tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+  .tabs button { appearance: none; border: 0; background: none; font: inherit; font-size: 14.5px; font-weight: 700; color: var(--muted-foreground); padding: 10px 0; cursor: pointer; position: relative; }
+  .tabs button[aria-selected="true"] { color: var(--foreground); }
+  .tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: var(--primary); }
+  .tabs button span { font-size: 12px; margin-left: 3px; font-weight: 500; }
+  .inbox { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+  .inbox-item { appearance: none; border: 0; font: inherit; text-align: left; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+                background: var(--card); background-image: var(--grain); color: var(--ink); padding: 12px 14px 12px 18px; position: relative; animation: rise .45s cubic-bezier(.2,.8,.2,1) both; }
+  .inbox-item:nth-child(odd) { rotate: -.4deg; } .inbox-item:nth-child(even) { rotate: .4deg; }
+  .inbox-item:active { scale: .98; }
+  .inbox-item .nm { font-weight: 800; font-size: 14.5px; display: flex; gap: 6px; align-items: center; }
+  .inbox-item .pv { font-family: var(--font-letter); font-size: 14.5px; color: #4a3f3a; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px; }
+  .inbox-item .side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-size: 11.5px; color: #7a6c62; }
+  .inbox-item .pc-stamp { width: 30px; height: 37px; }
+  .inbox-item.new::before { content: ""; position: absolute; left: 7px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--primary); }
+  .lock { color: var(--primary); font-size: 11px; font-weight: 700; }
+
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; padding: 40px 12px 96px; flex: 1; }
+  .empty:not([hidden]) { display: flex; }
+  .empty h3 { margin: 12px 0 0; font-size: 20px; font-family: var(--font-display); font-weight: 400; }
+  .empty p { margin: 0; color: var(--muted-foreground); font-size: 14px; line-height: 1.6; }
+
+  .toast { position: sticky; bottom: 18px; margin: 16px auto 0; width: fit-content; background: var(--cream); color: var(--ink); padding: 11px 18px; border-radius: 99px; font-size: 14px; font-weight: 700; z-index: 40; animation: toastIn 2.2s forwards; }
+  @keyframes toastIn { 0% { opacity: 0; transform: translateY(12px) } 12%, 85% { opacity: 1; transform: none } 100% { opacity: 0 } }
+
+  .dialog-back { position: absolute; left: 0; right: 0; background: rgb(10 8 8 / 70%); z-index: 60; display: flex; align-items: flex-end; justify-content: center; animation: fadeIn .2s; }
+  .dialog { background: var(--card); background-image: var(--grain); color: var(--ink); width: 100%; max-width: 480px; padding: 24px 18px 22px; animation: sheetUp .32s cubic-bezier(.2,.8,.2,1); }
+  .dialog h3 { margin: 0 0 6px; font-size: 21px; font-family: var(--font-display); font-weight: 400; }
+  .dialog p { margin: 0 0 18px; color: #5a4e48; font-size: 14.5px; line-height: 1.6; }
+  .dialog .row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+  .dialog .ticket { --notch: var(--card); height: 52px; }
+  .plain-btn { appearance: none; border: 1.5px solid rgb(29 24 22 / 25%); background: none; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
+  @keyframes sheetUp { from { transform: translateY(100%) } }
+
+  /* mailbox login */
+  .postbox { position: relative; width: 200px; margin: 66px auto 0; animation: rise .6s both; }
+  .postbox.denied { animation: shake .45s; }
+  .pb-sheep { position: absolute; width: 96px; left: 52px; top: -54px; z-index: 3; animation: bobble 3.4s ease-in-out infinite; }
+  .pb-body { position: relative; height: 236px; background: var(--primary); background-image: var(--grain); border-radius: 100px 100px 6px 6px; box-shadow: inset -14px 0 0 rgb(0 0 0 / 10%), 0 18px 30px -14px rgb(0 0 0 / 80%); perspective: 600px; overflow: visible; }
+  .pb-slot { position: absolute; left: 44px; right: 44px; top: 58px; height: 10px; border-radius: 5px; background: #4a0f0b; overflow: visible; }
+  .pb-peek { position: absolute; left: 18px; right: 30px; bottom: 3px; height: 16px; background: var(--card); transform: rotate(-3deg); clip-path: inset(0 0 40% 0); animation: peekCard 3s 1s ease-in-out infinite; }
+  @keyframes peekCard { 0%, 70%, 100% { transform: rotate(-3deg) translateY(0) } 80% { transform: rotate(-3deg) translateY(-5px) } }
+  .pb-plate { position: absolute; left: 30px; right: 30px; top: 84px; background: var(--card); background-image: var(--grain); color: var(--ink); text-align: center; padding: 7px 4px 6px; display: flex; flex-direction: column; }
+  .pb-plate span { font-weight: 800; font-size: 14px; letter-spacing: -0.01em; }
+  .pb-plate small { font-size: 8.5px; letter-spacing: .22em; color: var(--primary); font-weight: 800; margin-top: 2px; }
+  .pb-window { position: absolute; left: 50%; top: 146px; width: 50px; height: 50px; margin-left: -25px; border-radius: 50%; background: #2a0907; border: 3px solid #e7c57a; display: grid; place-items: center; align-content: center; color: #f3ece0; line-height: 1; z-index: 1; }
+  .pb-window b { font-family: "Gloock", serif; font-weight: 400; font-size: 20px; }
+  .pb-window small { font-size: 9px; }
+  .pb-door { position: absolute; left: 14px; right: 14px; top: 134px; bottom: 10px; border: 1.5px solid rgb(0 0 0 / 22%); border-radius: 4px; transform-origin: left center; transition: transform .7s cubic-bezier(.3,1.3,.5,1); z-index: 2; pointer-events: none; }
+  .pb-handle { position: absolute; right: 8px; top: 50%; width: 6px; height: 22px; margin-top: -11px; border-radius: 3px; background: #e7c57a; }
+  .pb-inside { position: absolute; left: 15px; right: 15px; top: 135px; bottom: 11px; background: #3a0c09; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; padding: 10px 14px; opacity: 0; transition: opacity .2s; }
+  .pb-inside i { display: block; height: 14px; background: var(--card); transform: rotate(-4deg); } .pb-inside i:nth-child(2) { transform: rotate(3deg); background: #f2d6cf; } .pb-inside i:nth-child(3) { transform: rotate(-1deg); }
+  .postbox.open .pb-door { transform: rotateY(-105deg); background: var(--primary); background-image: var(--grain); }
+  .postbox.open .pb-inside { opacity: 1; }
+  .postbox.open .pb-window { opacity: 0; transition: opacity .15s; }
+  .pb-base { width: 132px; height: 16px; margin: 0 auto; background: #2a2320; border-radius: 0 0 4px 4px; }
+  .keytag { position: relative; margin-top: 26px; background: var(--card); background-image: var(--grain); color: var(--ink); padding: 18px 20px 20px 46px; clip-path: polygon(22px 0, 100% 0, 100% 100%, 22px 100%, 0 50%); display: flex; flex-direction: column; gap: 14px; box-shadow: 0 16px 30px -14px rgb(0 0 0 / 75%); }
+  .kt-hole { position: absolute; left: 18px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: var(--background); box-shadow: inset 0 0 0 2px #c9b8a2; }
+  .kt-row { display: flex; align-items: baseline; gap: 10px; }
+  .kt-row span { font-size: 10.5px; letter-spacing: .22em; font-weight: 800; color: var(--primary); width: 78px; flex: none; }
+  .kt-row .line-input { flex: 1; width: auto; text-align: left; font-size: 15.5px; }
+  .keytag.denied { animation: shake .45s; }
+
+  /* sealed (private) envelope on the public wall */
+  .sealed { break-inside: avoid; margin-bottom: 16px; cursor: pointer; }
+  .env-tile { position: relative; aspect-ratio: 4 / 3.1; background: var(--maroon); background-image: var(--grain); box-shadow: 0 14px 24px -14px rgb(0 0 0 / 80%); overflow: hidden; }
+  .env-tile::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 58%; background: linear-gradient(to bottom right, transparent 49.4%, rgb(0 0 0 / 28%) 50%, transparent 50.8%) left/50% 100% no-repeat, linear-gradient(to bottom left, transparent 49.4%, rgb(0 0 0 / 28%) 50%, transparent 50.8%) right/50% 100% no-repeat; }
+  .env-tile .seal { position: absolute; left: 50%; top: 58%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; background: var(--primary); display: grid; place-items: center; box-shadow: 0 2px 0 #7b1a15; }
+  .env-tile .seal svg { width: 15px; color: #f3ece0; }
+  .env-tile .env-tag { position: absolute; left: 10px; bottom: 8px; font-size: 9px; letter-spacing: .22em; font-weight: 800; color: rgb(243 236 224 / 55%); }
+  .sealed.peeked .env-tile { animation: shake .45s; }
+  .secret-pc { overflow: hidden; }
+  .secret-pc .redacted { display: flex; flex-direction: column; gap: 13px; margin: 18px 0 14px; filter: blur(.6px); }
+  .secret-pc .redacted i { display: block; height: 9px; border-radius: 5px; background: rgb(29 24 22 / 16%); }
+  .secret-pc .dots { letter-spacing: .1em; color: rgb(29 24 22 / 35%); font-size: 10px; }
+  .secret-pc .tape { position: absolute; left: -24px; right: -24px; top: 46%; transform: rotate(-14deg); background: var(--primary); background-image: var(--grain); color: #f7efe2; display: flex; align-items: center; justify-content: center; gap: 6px; height: 28px; font-size: 11px; font-weight: 800; letter-spacing: .32em; padding-right: 30px; box-shadow: 0 4px 10px -4px rgb(0 0 0 / 50%); transition: transform .4s cubic-bezier(.3,1.6,.5,1); }
+  .secret-pc .tape-wax { position: absolute; right: 4%; top: calc(46% - 14px); width: 34px; height: 34px; transform: rotate(10deg); filter: drop-shadow(0 2px 2px rgb(0 0 0 / 35%)); }
+  .sealed.peeked .secret-pc { animation: shake .45s; }
+  .secret-lock { position: absolute; left: 50%; top: 46%; width: 64px; height: 64px; margin: -32px 0 0 -32px; color: rgb(200 50 43 / 22%); transition: transform .35s cubic-bezier(.3,1.6,.5,1), color .3s; pointer-events: none; }
+  .secret-lock svg { width: 100%; height: 100%; }
+  .sealed.peeked .secret-lock { transform: scale(1.1) rotate(-6deg); color: rgb(200 50 43 / 38%); }
+  .sealed .sealed-msg { font-size: 11.5px; color: var(--muted-foreground); line-height: 1.5; max-height: 0; overflow: hidden; transition: max-height .3s, margin .3s; }
+  .sealed.peeked .sealed-msg { max-height: 40px; margin-top: 6px; }
+  .owner-login .pc { padding-bottom: 22px; }
+  .owner-login .field-dark input { background: #fff; box-shadow: inset 0 0 0 1.5px rgb(29 24 22 / 18%); }
+  .owner-login .label { color: #6a5d55; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <path id="star5" d="M0-7 L1.8-2.2 L6.8-2.2 L2.8 0.8 L4.3 5.6 L0 2.8 L-4.3 5.6 L-2.8 0.8 L-6.8-2.2 L-1.8-2.2Z"/>
+    <path id="spark" d="M0-12 C1 -3 3 -1 12 0 C3 1 1 3 0 12 C-1 3 -3 1 -12 0 C-3 -1 -1 -3 0 -12Z"/>
+    <symbol id="sheep" viewBox="0 0 240 180">
+      <g fill="currentColor">
+        <rect x="76" y="104" width="10" height="58" rx="5"/><rect x="98" y="108" width="10" height="56" rx="5"/>
+        <rect x="150" y="108" width="10" height="56" rx="5"/><rect x="172" y="104" width="10" height="58" rx="5"/>
+        <circle cx="82" cy="64" r="22"/><circle cx="106" cy="54" r="24"/><circle cx="132" cy="52" r="24"/>
+        <circle cx="158" cy="55" r="24"/><circle cx="182" cy="66" r="22"/><circle cx="198" cy="88" r="19"/>
+        <circle cx="184" cy="108" r="19"/><circle cx="156" cy="114" r="19"/><circle cx="128" cy="116" r="19"/>
+        <circle cx="100" cy="114" r="19"/><circle cx="76" cy="106" r="19"/><circle cx="64" cy="86" r="19"/>
+        <ellipse cx="130" cy="86" rx="64" ry="34"/><circle cx="214" cy="80" r="9"/>
+        <path d="M72 76 L50 50 L32 62 L56 100 Z"/>
+        <ellipse cx="36" cy="64" rx="23" ry="14" transform="rotate(-28 36 64)"/>
+        <ellipse cx="56" cy="46" rx="12" ry="4.5" transform="rotate(-18 56 46)"/>
+      </g>
+      <g fill="var(--sheep-detail)">
+        <rect x="76" y="154" width="10" height="9" rx="2"/><rect x="98" y="156" width="10" height="9" rx="2"/>
+        <rect x="150" y="156" width="10" height="9" rx="2"/><rect x="172" y="154" width="10" height="9" rx="2"/>
+        <circle cx="29" cy="58" r="2.8"/>
+      </g>
+      <path d="M44 48 c2 -18 28 -20 29 -4 c1 10 -12 13 -15 5" fill="none" stroke="var(--sheep-horn)" stroke-width="6.5" stroke-linecap="round"/>
+      <g fill="var(--sheep-star)">
+        <use href="#star5" transform="translate(104 66) scale(1.5) rotate(12)"/><use href="#star5" transform="translate(140 58) scale(1.2) rotate(-8)"/>
+        <use href="#star5" transform="translate(172 82) scale(1.4) rotate(20)"/><use href="#star5" transform="translate(126 98) scale(1.1) rotate(-15)"/>
+        <use href="#star5" transform="translate(86 92) scale(1.1)"/><use href="#star5" transform="translate(158 108) scale(1) rotate(30)"/>
+        <use href="#star5" transform="translate(194 100) scale(.9)"/>
+      </g>
+      <g fill="var(--sheep-ribbon)">
+        <path d="M60 84 l-14 -9 l1 16 z"/><path d="M60 84 l14 -10 l-1 17 z"/><path d="M58 86 l-6 16 l5 -2 l4 4 z"/><circle cx="60" cy="84" r="3.5"/>
+      </g>
+    </symbol>
+    <symbol id="wax" viewBox="0 0 60 60">
+      <path d="M30 2.5c5 .2 7.6 2.6 11.6 3.6 4.4 1.1 8.3 3.8 10.2 8.2 1.6 3.7.8 7.4 2.6 11 2 4 1.2 8.6-.9 12.3-2 3.5-2.1 7.6-5.6 10.4-3.4 2.8-7.7 3.2-11.7 5-3.8 1.7-8 2.4-12 1-3.9-1.3-7.9-1.9-11-4.8-3.3-3-4.4-7.4-6.8-11-2.3-3.5-4-7.7-3-11.8.9-4 3.5-7.3 5.3-11 1.8-3.6 4.8-6.6 8.7-7.8 4.2-1.3 8.2-4.3 12.6-4.1z" fill="#c22d27"/>
+      <circle cx="30" cy="30" r="18.5" fill="#b02620" stroke="#8a1b16" stroke-width="1.6"/>
+      <circle cx="30" cy="30" r="15.5" fill="none" stroke="#d8473f" stroke-width="1" opacity=".7"/>
+      <svg x="17" y="20.5" width="26" height="19.5" viewBox="0 0 240 180" style="color:#7d1813;--sheep-detail:#7d1813;--sheep-star:#b02620;--sheep-ribbon:transparent;--sheep-horn:#7d1813"><use href="#sheep"/></svg>
+      <ellipse cx="20" cy="15" rx="7" ry="3.2" fill="#fff" opacity=".22" transform="rotate(-35 20 15)"/>
+    </symbol>
+    <symbol id="lockSolid" viewBox="0 0 24 24"><path d="M7.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4.5" y="10" width="15" height="11" rx="2.6" fill="currentColor"/></symbol>
+    <symbol id="lock2" viewBox="0 0 24 24"><path d="M7.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="15" r="1.5" fill="currentColor"/><path d="M12 15.8v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2" fill="currentColor"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.4"/></symbol>
+  </defs>
+</svg>
+
+<header class="sh-bar">
+  <b>proto</b>
+  <label class="sh-control"><span class="sh-control-label">screen</span><select id="sh-screen"></select></label>
+  <span class="sh-spacer"></span>
+  <label class="sh-control"><span class="sh-control-label">state</span><select id="sh-state"></select></label>
+  <button id="sh-vp">vp: full (m)</button>
+  <div class="sh-theme" id="sh-theme" role="group" aria-label="theme (t)" hidden>
+    <button data-theme="light">light</button><button data-theme="dark">dark</button>
+  </div>
+</header>
+
+<main class="sh-stage">
+
+  <!-- ───────── Home: stamp + letter pile ───────── -->
+  <section data-screen="home" data-title="첫 화면" data-states="첫 덕담 전">
+    <div class="app home" data-component="new:LetterPile">
+      <div class="stamp hero-stamp" id="heroStamp" onclick="hopHero(this)">
+        <div class="stamp-in">
+          <div class="fs-row"><span class="fs-tag">2027 · 丁未年</span><a class="fs-owner" href="#owner-login" onclick="event.stopPropagation()" aria-label="세린의 우체통 열기">세린의 우체통 →</a></div>
+          <div class="fs-sheep">
+            <svg class="hero-art" viewBox="0 0 300 270" aria-label="here's to new beginnings">
+              <path id="heroArc" d="M 28 178 A 122 122 0 0 1 272 178" fill="none"/>
+              <text class="arc-text"><textPath href="#heroArc" startOffset="50%" text-anchor="middle">here’s to new beginnings</textPath></text>
+              <g class="sheep-cream arc-sheep"><svg x="48" y="104" width="204" height="153" viewBox="0 0 240 180"><use href="#sheep"/></svg></g>
+            </svg>
+            <svg class="sparkle" style="left:4%;top:8%;width:16px;height:16px;fill:#f3ece0" viewBox="-12 -12 24 24"><use href="#spark"/></svg>
+            <svg class="sparkle" style="right:3%;top:20%;width:22px;height:22px;fill:var(--pink);animation-delay:1s" viewBox="-12 -12 24 24"><use href="#spark"/></svg>
+            <svg class="sparkle" style="left:10%;bottom:4%;width:20px;height:20px;fill:var(--pink);animation-delay:.6s" viewBox="-12 -12 24 24"><use href="#spark"/></svg>
+            <svg class="sparkle" style="right:8%;bottom:10%;width:14px;height:14px;fill:#f3ece0;animation-delay:1.7s" viewBox="-12 -12 24 24"><use href="#spark"/></svg>
+          </div>
+          <div class="hero-meta"><span data-when="Default">세린에게 27통 도착</span><span data-when="첫 덕담 전" hidden>첫 엽서를 기다려요</span></div>
+          <div class="stamp-num"><span>2</span><span>0</span><span>2</span><span>7</span></div>
+        </div>
+      </div>
+
+      <div class="pile" id="pile">
+        <a class="letter l-secret" href="#lookup" onclick="return pull(this, 'lookup')">
+          <span class="l-title">비밀 우체통</span>
+          <span class="l-sub">닉네임과 생일로 답장 열기</span>
+          <svg class="wax-seal" viewBox="0 0 60 60"><use href="#wax"/></svg>
+        </a>
+        <a class="letter l-open" href="#wall" onclick="return pull(this, 'wall')">
+          <span class="l-title">모두의 엽서 <span class="l-count" data-when="Default">11장</span><span class="l-count" data-when="첫 덕담 전" hidden>0장</span></span>
+          <span class="l-sub">공개 엽서와 세린의 답장</span>
+        </a>
+        <a class="letter l-write" href="#write" onclick="return pull(this, 'write')">
+          <span class="l-to">to. 세린</span>
+          <span class="l-title">엽서 쓰기</span>
+          <span class="l-lines"></span>
+          <svg class="sheep sheep-red l-sheep" viewBox="0 0 240 180"><use href="#sheep"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── Write ───────── -->
+  <section data-screen="write" data-title="엽서 쓰기">
+    <div class="app" style="position:relative">
+      <div class="topbar"><a class="back" href="#home" aria-label="뒤로">←</a><h1>엽서 쓰기</h1></div>
+      <form class="stack" id="writeForm" novalidate onsubmit="return sendCard(event)" data-component="new:PostcardComposer">
+        <div class="pc rise" id="composer">
+          <div class="pc-head">
+            <span class="pc-to">to. 세린</span>
+            <span class="pc-corner"><span class="pc-hny">happy<br>new<br>year</span><span id="slot"></span></span>
+          </div>
+          <textarea id="wMsg" class="pc-msg" maxlength="300" placeholder="새해에 전하고 싶은 말을 적어 주세요" aria-label="덕담"></textarea>
+          <div class="pc-from">from. <input class="line-input" id="wName" maxlength="10" placeholder="닉네임" autocomplete="off" aria-label="닉네임"></div>
+          <div class="pc-parade" id="parade"></div>
+        </div>
+        <div class="err-line" id="wErr" style="margin-top:-6px"></div>
+
+        <div>
+          <span class="label">우표 고르기</span>
+          <div class="stamp-picker" role="radiogroup" id="picker"></div>
+        </div>
+
+        <div>
+          <span class="label">누가 볼 수 있나요?</span>
+          <div class="vis" role="radiogroup" id="vis">
+            <button type="button" role="radio" aria-checked="true" data-v="public"><span class="pm">OPEN<br>2027</span><span><b>공개</b><small>모두의 엽서에 걸려요</small></span></button>
+            <button type="button" role="radio" aria-checked="false" data-v="private"><span class="pm">SECRET<br>2027</span><span><b>비공개</b><small>세린과 나만 봐요</small></span></button>
+          </div>
+        </div>
+        <div class="birth closed" id="birthWrap">
+          <div>
+            <div class="field-dark">
+              <span class="label">생일 4자리 · 비밀 우체통 비밀번호</span>
+              <input id="wBirth" inputmode="numeric" maxlength="4" placeholder="예: 0315" autocomplete="off">
+            </div>
+          </div>
+        </div>
+        <p class="lead" id="visNote" style="font-size:12.5px">공개 엽서는 누구나 볼 수 있고, 세린의 답장도 함께 공개돼요. 보낸 뒤에는 고칠 수 없어요.</p>
+        <button class="ticket" data-component="new:Ticket"><b>우체통에 넣기</b><span>→</span></button>
+      </form>
+
+      <div class="overlay" id="sendOverlay" hidden>
+        <div class="env-scene" id="envScene">
+          <div class="env-group">
+            <div class="env-flap"></div>
+            <div class="env-back"></div>
+            <div class="env-letter"><div class="pc"><span class="pc-to">to. 세린</span><p class="pc-msg" id="envMsg"></p></div></div>
+            <div class="env-front"></div>
+            <div class="env-seal" id="envSeal"></div>
+          </div>
+          <div class="env-caption">양에게 날아가는 중…</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── Sent ───────── -->
+  <section data-screen="sent" data-title="보내기 완료" data-states="비공개로 보냄">
+    <div class="app center fill" style="position:relative">
+      <div class="topbar" style="text-align:left"><a class="back" href="#home" aria-label="처음으로">←</a><h1></h1></div>
+      <div class="grow"></div>
+      <div class="stamp sent-stamp">
+        <div class="stamp-in">
+          <span class="fs-word" style="font-size:12px;text-align:left">delivered</span>
+          <svg class="sheep sheep-cream" viewBox="0 0 240 180" style="animation:hop .8s .5s ease-out"><use href="#sheep"/></svg>
+          <span class="stamp-num" style="font-size:24px"><span>2</span><span>0</span><span>2</span><span>7</span></span>
+        </div>
+        <svg class="postmark-big" viewBox="0 0 166 120" aria-label="Happy New Year 소인">
+          <defs>
+            <filter id="inkRough" x="-5%" y="-5%" width="110%" height="110%">
+              <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="7" result="n"/>
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="1.6" result="d"/>
+              <feTurbulence type="fractalNoise" baseFrequency=".09" numOctaves="2" seed="3" result="blot"/>
+              <feColorMatrix in="blot" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -1.3 1.55" result="mask"/>
+              <feComposite in="d" in2="mask" operator="in"/>
+            </filter>
+          </defs>
+          <g filter="url(#inkRough)">
+            <g class="pm-waves" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <path d="M114 46 q8 -5 16 0 t16 0 t16 0"/>
+              <path d="M118 60 q8 -5 16 0 t16 0 t12 0"/>
+              <path d="M114 74 q8 -5 16 0 t16 0 t16 0"/>
+            </g>
+            <circle cx="60" cy="60" r="55" fill="none" stroke="currentColor" stroke-width="2.6"/>
+            <circle cx="60" cy="60" r="47" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <g fill="currentColor">
+              <path transform="translate(60 9.5) scale(.32)" d="M0-12 C1 -3 3 -1 12 0 C3 1 1 3 0 12 C-1 3 -3 1 -12 0 C-3 -1 -1 -3 0 -12Z"/>
+              <path transform="translate(9.5 60) scale(.26)" d="M0-12 C1 -3 3 -1 12 0 C3 1 1 3 0 12 C-1 3 -3 1 -12 0 C-3 -1 -1 -3 0 -12Z"/>
+              <path transform="translate(110.5 60) scale(.26)" d="M0-12 C1 -3 3 -1 12 0 C3 1 1 3 0 12 C-1 3 -3 1 -12 0 C-3 -1 -1 -3 0 -12Z"/>
+            </g>
+            <text x="60" y="54" text-anchor="middle" class="pm-hny">Happy</text>
+            <text x="60" y="72" text-anchor="middle" class="pm-hny">New Year</text>
+            <line x1="40" y1="81" x2="80" y2="81" stroke="currentColor" stroke-width=".9"/>
+            <text x="60" y="94" text-anchor="middle" class="pm-year">2 0 2 7</text>
+          </g>
+        </svg>
+      </div>
+      <div class="stack" style="gap:10px; margin-top:34px">
+        <h2 class="big-title rise">엽서가 잘 도착했어요</h2>
+        <p class="lead rise d1" data-when="Default">모두의 엽서에 걸렸어요.<br>세린이 답장을 쓰면 엽서를 뒤집어 볼 수 있어요.</p>
+        <p class="lead rise d1" data-when="비공개로 보냄" hidden>세린이 답장을 쓰면 비밀 우체통에서<br><b style="color:var(--foreground)" id="sentWho">하늘이 · 0315</b>로 열어 볼 수 있어요.</p>
+      </div>
+      <div class="grow" style="flex:1.3"></div>
+      <div class="pile two" data-component="new:LetterPile">
+        <a class="letter l-open" href="#wall" onclick="return pull(this, 'wall')" data-when="Default">
+          <span class="l-title">모두의 엽서</span>
+          <span class="l-sub">방금 보낸 엽서가 걸려 있어요</span>
+        </a>
+        <a class="letter l-secret" href="#lookup" onclick="return pull(this, 'lookup')" data-when="비공개로 보냄" hidden>
+          <span class="l-title">비밀 우체통</span>
+          <span class="l-sub">답장이 오면 여기서 열어요</span>
+          <svg class="wax-seal" viewBox="0 0 60 60"><use href="#wax"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── Public wall ───────── -->
+  <section data-screen="wall" data-title="모두의 엽서" data-states="아직 없음">
+    <div class="app fill">
+      <div class="topbar"><a class="back" href="#home" aria-label="뒤로">←</a><h1>모두의 엽서</h1><span class="muted" style="font-size:12.5px;margin-right:6px" data-when="Default">공개 11 · 비밀 16</span></div>
+      <p class="lead" style="margin:0 0 16px; font-size:13px" data-when="Default">엽서를 누르면 뒤집혀서 세린의 답장이 보여요.</p>
+      <div id="wall" data-when="Default" data-component="new:PostcardWall" style="columns:2; column-gap:12px"></div>
+      <div class="empty" data-when="아직 없음" hidden>
+        <svg class="sheep sheep-red" viewBox="0 0 240 180" style="width:120px;animation:bobble 3s infinite"><use href="#sheep"/></svg>
+        <h3>첫 엽서를 기다리고 있어요</h3>
+        <p>공개로 보낸 엽서와 세린의 답장이 여기에 모여요.</p>
+        <a class="ticket sm" href="#write" style="margin-top:14px;max-width:240px"><b>첫 엽서 쓰기</b><span>→</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── Secret box (lookup) ───────── -->
+  <section data-screen="lookup" data-title="비밀 우체통" data-states="찾지 못함">
+    <div class="app fill">
+      <div class="topbar"><a class="back" href="#home" aria-label="뒤로">←</a><h1>비밀 우체통</h1></div>
+      <p class="lead" style="margin:0 0 10px">비공개로 보낼 때 적은 닉네임과 생일로<br>봉투를 열 수 있어요.</p>
+      <form onsubmit="return lookup(event)" data-component="new:SealedEnvelope" style="display:flex;flex-direction:column;flex:1">
+        <div class="grow" style="flex:.7"></div>
+        <div class="lk-env" id="lkEnv" data-component="new:EnvelopeBack">
+          <svg class="env-back-art" viewBox="0 0 340 230" preserveAspectRatio="none" aria-hidden="true">
+            <rect width="340" height="230" fill="#efe4cf"/>
+            <path d="M0 0 L168 124 Q170 126 172 124 L340 0 L340 230 L0 230 Z" fill="#e8dcc4"/>
+            <path d="M0 230 L160 112 Q170 105 180 112 L340 230 Z" fill="#e3d6bc"/>
+            <path d="M0 230 L160 112 Q170 105 180 112 L340 230" fill="none" stroke="rgb(29 24 22 / 10%)" stroke-width="1.2"/>
+            <path d="M0 0 L0 230 M340 0 L340 230" stroke="rgb(29 24 22 / 8%)"/>
+          </svg>
+          <svg class="env-flap-art" id="lkFlap" viewBox="0 0 340 140" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 0 L340 0 L186 126 Q170 138 154 126 Z" fill="#f4ebd9"/>
+            <path d="M0 0 L154 126 Q170 138 186 126 L340 0" fill="none" stroke="rgb(29 24 22 / 16%)" stroke-width="1.2"/>
+          </svg>
+          <svg class="lk-wax" viewBox="0 0 60 60"><use href="#wax"/></svg>
+          <div class="lk-label">
+            <label class="lk-row"><span>NAME</span><input class="line-input" id="lkName" maxlength="10" value="하늘이" placeholder="닉네임"></label>
+            <label class="lk-row"><span>BIRTHDAY</span><input class="line-input" id="lkBirth" inputmode="numeric" maxlength="4" value="0315" placeholder="0315"></label>
+          </div>
+        </div>
+        <div class="err-line" data-when="찾지 못함" hidden style="margin-top:14px">이 닉네임과 생일로 보낸 비공개 엽서가 없어요. 보낼 때 적은 그대로인지 확인해 주세요.</div>
+        <div class="grow"></div>
+        <div><button class="ticket"><b>봉투 열기</b><span>→</span></button></div>
+        <p class="lead center" style="margin-top:18px; font-size:12.5px">공개로 보낸 엽서의 답장은 <a href="#wall" style="color:var(--foreground)">모두의 엽서</a>에서 바로 볼 수 있어요.</p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ───────── My secret postcards ───────── -->
+  <section data-screen="my-cards" data-title="내 비밀 엽서와 답장">
+    <div class="app">
+      <div class="topbar"><a class="back" href="#lookup" aria-label="뒤로">←</a><h1>하늘이 님의 비밀 엽서</h1></div>
+      <p class="lead" style="margin:0 0 18px; font-size:13px">엽서를 누르면 뒤집혀서 세린의 답장이 보여요.</p>
+      <div class="stack" style="gap:26px" id="myCards"></div>
+      <div style="margin-top:30px"><a class="ticket cream sm" href="#write"><b>엽서 한 장 더 쓰기</b><span>→</span></a></div>
+    </div>
+  </section>
+
+  <!-- ───────── Open the mailbox (Serin sign-in) ───────── -->
+  <section data-screen="owner-login" data-title="우체통 열기" data-states="열리지 않음">
+    <div class="app mb-login fill">
+      <div class="topbar"><a class="back" href="#home" aria-label="뒤로">←</a><h1>우체통 열기</h1></div>
+
+      <div class="grow"></div>
+      <div class="postbox" id="postbox" data-component="new:Postbox">
+        <svg class="sheep sheep-cream pb-sheep" viewBox="0 0 240 180"><use href="#sheep"/></svg>
+        <div class="pb-body">
+          <div class="pb-slot"><span class="pb-peek"></span></div>
+          <div class="pb-plate"><span>세린의 우체통</span><small>2027 · 丁未年</small></div>
+          <div class="pb-window"><b>27</b><small>통</small></div>
+          <div class="pb-door" id="pbDoor"><span class="pb-handle"></span></div>
+          <div class="pb-inside"><i></i><i></i><i></i></div>
+        </div>
+        <div class="pb-base"></div>
+      </div>
+
+      <form class="keytag" id="keytag" onsubmit="return openBox(event)" data-component="new:KeyTag">
+        <span class="kt-hole"></span>
+        <label class="kt-row"><span>EMAIL</span><input class="line-input" id="mbEmail" type="email" value="serin@example.com" autocomplete="username"></label>
+        <label class="kt-row"><span>PASSWORD</span><input class="line-input" id="mbPw" type="password" value="password" autocomplete="current-password"></label>
+      </form>
+      <div class="err-line" data-when="열리지 않음" hidden>이메일이나 비밀번호가 맞지 않아요. 다시 확인해 주세요.</div>
+      <div class="grow"></div>
+      <div><button class="ticket" form="keytag"><b>우체통 열기</b><span>→</span></button></div>
+      <p class="lead center" style="margin-top:14px; font-size:12.5px">이 우체통은 세린만 열 수 있어요.</p>
+    </div>
+  </section>
+
+  <!-- ───────── Serin's mailbox ───────── -->
+  <section data-screen="inbox" data-title="세린의 우체통" data-states="아직 없음">
+    <div class="app fill">
+      <div class="topbar"><a class="back" href="#home" aria-label="처음으로">←</a><h1>세린의 우체통</h1></div>
+      <div data-when="Default">
+        <div class="owner-sum">
+          <div class="hot"><b id="sumWait">10</b><span>답장 기다리는 중</span></div>
+          <div><b>27</b><span>받은 엽서 · 공개 11 · 비공개 16</span></div>
+        </div>
+        <div class="tabs" role="tablist" id="tabs">
+          <button role="tab" aria-selected="true" data-f="wait">답장 전<span id="cWait"></span></button>
+          <button role="tab" aria-selected="false" data-f="done">답장 완료<span id="cDone"></span></button>
+          <button role="tab" aria-selected="false" data-f="all">전체<span>27</span></button>
+        </div>
+        <div class="inbox" id="inbox"></div>
+      </div>
+      <div class="empty" data-when="아직 없음" hidden>
+        <svg class="sheep sheep-red" viewBox="0 0 240 180" style="width:120px;animation:bobble 3s infinite"><use href="#sheep"/></svg>
+        <h3>아직 도착한 엽서가 없어요</h3>
+        <p>친구들에게 연하장 주소를 보내 보세요.</p>
+        <button class="ticket cream sm" style="margin-top:14px;max-width:240px" onclick="toast('주소를 복사했어요')"><b>주소 복사하기</b><span>⧉</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── Postcard detail (Serin) ───────── -->
+  <section data-screen="card" data-title="엽서와 답장 (세린)">
+    <div class="app" style="position:relative">
+      <div class="topbar"><a class="back" href="#inbox" aria-label="뒤로">←</a><h1 id="cdTitle">민트초코 님의 엽서</h1><button class="text-link" style="color:var(--destructive);margin-right:6px" onclick="openDelete()">버리기</button></div>
+      <div class="rise" id="cdCard"></div>
+      <div class="flip-meta" id="cdMeta"></div>
+      <div style="margin-top:22px" class="rise d1" id="replyArea"></div>
+      <div class="dialog-back" id="delDialog" hidden onclick="if(event.target===this) closeDelete()">
+        <div class="dialog" role="alertdialog">
+          <h3>이 엽서를 버릴까요?</h3>
+          <p>버리면 되돌릴 수 없어요. 모두의 엽서에서도 사라지고, 보낸 친구도 더 이상 이 엽서와 답장을 볼 수 없어요.</p>
+          <div class="row">
+            <button class="plain-btn" onclick="closeDelete()">취소</button>
+            <button class="ticket danger" onclick="doDelete()"><b>버리기</b><span>✕</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>document.body.classList.add('sh-vp-390'); if (new URLSearchParams(location.search).has('embed')) { document.querySelector('.sh-bar').hidden = true; document.body.classList.add('embed'); }</script>
+<style>.embed { padding: 0 } .embed .sh-stage { margin: 0 auto; border: 0; border-radius: 0; height: 100vh }</style>
+<script>
+  const stage = document.querySelector('.sh-stage');
+  const screens = [...stage.querySelectorAll('[data-screen]')];
+  const screenSelect = document.getElementById('sh-screen');
+  const stateSelect = document.getElementById('sh-state');
+  const vpBtn = document.getElementById('sh-vp');
+  const themeCtl = document.getElementById('sh-theme');
+  const themeBtns = [...themeCtl.querySelectorAll('button')];
+  let current = null;
+  let currentStates = [];
+
+  screens.forEach(s => {
+    const option = document.createElement('option');
+    option.textContent = s.dataset.title || s.dataset.screen;
+    option.value = s.dataset.screen;
+    screenSelect.append(option);
+  });
+  screenSelect.onchange = () => show(screenSelect.value);
+
+  function show(slug) {
+    current = screens.find(s => s.dataset.screen === slug) || screens[0];
+    screens.forEach(s => s.hidden = s !== current);
+    screenSelect.value = current.dataset.screen;
+    history.replaceState(null, '', '#' + current.dataset.screen);
+    buildStates();
+    stage.scrollTop = 0;
+    window.onScreen && window.onScreen(current.dataset.screen);
+  }
+
+  function buildStates() {
+    const declared = (current.dataset.states || '').split(',').map(x => x.trim()).filter(Boolean);
+    currentStates = ['Default', ...declared.filter(name => name !== 'Default')];
+    stateSelect.innerHTML = '';
+    currentStates.forEach(name => {
+      const option = document.createElement('option');
+      option.textContent = name;
+      option.value = name;
+      stateSelect.append(option);
+    });
+    applyState('Default');
+  }
+
+  function applyState(name) {
+    const active = currentStates.includes(name) ? name : 'Default';
+    current.querySelectorAll('[data-when]').forEach(el => {
+      el.hidden = !el.dataset.when.split(',').map(x => x.trim()).includes(active);
+    });
+    stateSelect.value = active;
+  }
+  stateSelect.onchange = () => applyState(stateSelect.value);
+
+  window.prototypeShell = {
+    showScreen: show,
+    setState: applyState,
+    getScreen: () => current?.dataset.screen,
+    getState: () => stateSelect.value
+  };
+
+  const VPS = ['full', '390', '768'];
+  let vp = VPS.find(v => document.body.classList.contains('sh-vp-' + v)) || 'full';
+  function applyVp() {
+    VPS.forEach(v => document.body.classList.toggle('sh-vp-' + v, v === vp && v !== 'full'));
+    vpBtn.textContent = 'vp: ' + vp + ' (m)';
+    vpBtn.classList.toggle('on', vp !== 'full');
+  }
+  vpBtn.onclick = () => { vp = VPS[(VPS.indexOf(vp) + 1) % VPS.length]; applyVp(); };
+  applyVp();
+
+  const hasDark = [...document.styleSheets].some(sheet => {
+    try {
+      return [...sheet.cssRules].some(rule => (rule.selectorText || '')
+        .split(',').some(part => /\.sh-theme-dark$/.test(part.trim())));
+    } catch { return false }
+  });
+  let dark = false;
+  function applyTheme() {
+    document.documentElement.classList.toggle('sh-theme-dark', dark);
+    document.body.classList.toggle('sh-theme-dark', dark);
+    themeBtns.forEach(b => b.classList.toggle('on', (b.dataset.theme === 'dark') === dark));
+  }
+  themeCtl.hidden = !hasDark;
+  themeBtns.forEach(b => b.onclick = () => { dark = b.dataset.theme === 'dark'; applyTheme(); });
+  applyTheme();
+
+  addEventListener('keydown', e => {
+    if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    const i = screens.indexOf(current);
+    if (e.key === 'ArrowRight') show(screens[(i + 1) % screens.length].dataset.screen);
+    if (e.key === 'ArrowLeft') show(screens[(i - 1 + screens.length) % screens.length].dataset.screen);
+    if (e.key === 'm') vpBtn.click();
+    if (e.key === 't' && !themeCtl.hidden) { dark = !dark; applyTheme(); }
+  });
+
+  addEventListener('hashchange', () => show(location.hash.slice(1)));
+</script>
+
+<script>
+  /* ─────────── product behavior (dummy data only) ─────────── */
+  const SHEEP = (cls, style = '') => `<svg class="sheep ${cls}" viewBox="0 0 240 180" style="${style}"><use href="#sheep"/></svg>`;
+  const STAMPS = {
+    red:    { name: '붉은 양', c: 'var(--primary)', sheep: 'sheep-cream' },
+    cream:  { name: '크림 양', c: 'var(--cream)', sheep: 'sheep-red' },
+    night:  { name: '별밤 양', c: 'var(--maroon)', sheep: 'sheep-cream' },
+    silver: { name: '은박 양', c: '#9e2a24', sheep: 'sheep-silver' },
+  };
+  const stampHtml = (k, cls = 'pc-stamp') => `<span class="stamp sm ${cls}" style="--c:${STAMPS[k].c}"><span class="stamp-in">${SHEEP(STAMPS[k].sheep)}</span></span>`;
+  const parade = () => Array.from({ length: 5 }, (_, i) => SHEEP(i % 2 ? 'sheep-ghost' : 'sheep-red')).join('');
+  const esc = s => s.replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]));
+
+  function postcard(c) {
+    return `<div class="pc" data-component="new:Postcard">
+      <div class="pc-head"><span class="pc-to">to. 세린</span><span class="pc-corner"><span class="pc-hny">happy<br>new<br>year</span>${stampHtml(c.stamp)}</span></div>
+      <div class="pc-postmark ${c.vis === 'private' ? 'secret' : ''}">${c.vis === 'private' ? 'SECRET' : 'OPEN'}<br>${c.date.split(' ')[0]}<br>2026</div>
+      <p class="pc-msg">${esc(c.msg)}</p>
+      <div class="pc-from">from. ${esc(c.name)}</div>
+      <div class="pc-parade">${parade()}</div></div>`;
+  }
+  function replyCard(c) {
+    return c.reply
+      ? `<div class="pc reply"><div class="pc-head"><span class="pc-to">re. ${esc(c.name)}</span><span class="pc-corner"><span class="pc-hny" style="color:var(--ink)">with<br>love</span>${stampHtml('red')}</span></div>
+          <p class="pc-msg">${esc(c.reply)}</p><div class="pc-from">from. 세린</div><div class="pc-parade">${parade()}</div></div>`
+      : `<div class="pc reply waiting">${SHEEP('sheep-red')}<p>답장을 쓰는 중이에요</p><span>조금만 기다려 주세요</span></div>`;
+  }
+  function flip(c, meta, mini) {
+    return `<div class="${mini ? 'mini-pc' : ''}" style="break-inside:avoid;margin-bottom:${mini ? 16 : 0}px"><div class="flip" onclick="this.classList.toggle('flipped')" data-component="new:FlipPostcard"><div class="flip-inner">
+      <div>${postcard(c)}</div><div class="flip-back">${replyCard(c)}</div></div></div>${meta}</div>`;
+  }
+
+  const CARDS = [
+    { id: 1, name: '민트초코', vis: 'private', stamp: 'silver', date: '12.31 밤', msg: '세린아 올 한 해 진짜 고생 많았어! 회사에서 같이 야근하던 날들이 벌써 그립다 ㅋㅋ 2027년엔 우리 둘 다 연봉도 오르고 건강도 챙기자. 붉은 양처럼 뜨겁게!', reply: null, isNew: true },
+    { id: 2, name: '하늘이', vis: 'private', stamp: 'red', date: '12.30', msg: '새해 복 많이 받아 🐑', reply: null, isNew: true },
+    { id: 3, name: '김부장님아님', vis: 'public', stamp: 'cream', date: '12.29', msg: '작년에 빌려간 보조배터리 아직 안 돌려준 거 알지? 새해엔 꼭 돌려줘. 그거 말고는 다 좋았다. 새해 복 많이 받아라~', reply: null },
+    { id: 4, name: '엄마', vis: 'private', stamp: 'night', date: '12.28', msg: '우리 딸 올해도 건강하고, 밥 잘 챙겨 먹고, 주말엔 집에도 좀 와라. 사랑한다.', reply: null },
+    { id: 5, name: 'jun_0712', vis: 'public', stamp: 'red', date: '12.27', msg: 'Happy new year!! 내년에도 클라이밍 같이 가자 V3 깨자', reply: null },
+    { id: 11, name: '하늘이', vis: 'private', stamp: 'night', date: '12.20', msg: '연말 모임 때 못 봐서 아쉬웠어! 내년엔 꼭 만나자 ☃️', reply: '하늘아 고마워! 1월 둘째 주에 우리 동네 떡볶이집 가자. 내가 쏠게.' },
+    { id: 12, name: '도토리묵', vis: 'public', stamp: 'silver', date: '12.18', msg: '새해엔 다이어트 성공하길… 나도…', reply: '우리 같이 성공하자… 일단 설 연휴 끝나고…' },
+    { id: 13, name: '박과장', vis: 'public', stamp: 'night', date: '12.15', msg: '올해 프로젝트 같이 해서 즐거웠어요. 새해에도 잘 부탁드립니다!', reply: '과장님 덕분에 많이 배웠어요. 새해 복 많이 받으세요!' },
+    { id: 14, name: '수영', vis: 'public', stamp: 'cream', date: '12.14', msg: '세린 덕분에 올해 버틸 수 있었어. 고마워. 정말로.', reply: '나야말로. 내년엔 우리 둘 다 덜 버티고 더 놀자.' },
+    { id: 15, name: '고양이집사', vis: 'public', stamp: 'red', date: '12.12', msg: '양띠 해니까 털 많은 친구들 모두 행복하길 🐈', reply: null },
+  ];
+  let filter = 'wait', openId = 1;
+  const find = id => CARDS.find(c => c.id === id);
+
+  /* home */
+  function pull(el, hash) {
+    const pile = el.closest('.pile'); pile.classList.add('pulling'); el.classList.add('pulled');
+    setTimeout(() => { pile.classList.remove('pulling'); el.classList.remove('pulled'); location.hash = hash; }, 600);
+    return false;
+  }
+  function hopHero(el) { el.classList.remove('hopping'); void el.offsetWidth; el.classList.add('hopping'); setTimeout(() => el.classList.remove('hopping'), 800); }
+
+  /* wall */
+  function renderWall() {
+    document.getElementById('wall').innerHTML = CARDS.map(c => c.vis === 'public'
+      ? flip(c, `<div class="flip-meta"><span>${esc(c.name)}</span>${c.reply ? '<span class="chip chip-red">답장 있음</span>' : '<span class="chip chip-line">답장 전</span>'}</div>`, true)
+      : `<div class="sealed mini-pc" onclick="peekSealed(this)" data-component="new:SecretPostcard">
+           <div class="pc secret-pc">
+             <div class="pc-head"><span class="pc-to">to. 세린</span>${stampHtml(c.stamp)}</div>
+             <div class="redacted"><i style="width:92%"></i><i style="width:78%"></i><i style="width:86%"></i><i style="width:40%"></i></div>
+             <div class="pc-from">from. <span class="dots">● ● ●</span></div>
+             <div class="pc-parade">${parade()}</div>
+             <span class="secret-lock"><svg viewBox="0 0 24 24"><use href="#lockSolid"/></svg></span>
+           </div>
+           <div class="flip-meta"><span>비밀 엽서 · ${c.date.split(' ')[0]}</span><span class="chip chip-line">비밀</span></div>
+           <div class="sealed-msg">보낸 사람만 비밀 우체통에서 열 수 있어요.</div></div>`).join('');
+  }
+  function peekSealed(el) { el.classList.remove('peeked'); void el.offsetWidth; el.classList.add('peeked'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('peeked'), 2600); }
+
+  /* inbox */
+  function renderInbox() {
+    const list = CARDS.filter(c => filter === 'all' || (filter === 'wait' ? !c.reply : !!c.reply));
+    document.getElementById('inbox').innerHTML = list.map((c, i) => `<button class="inbox-item ${c.isNew ? 'new' : ''}" style="animation-delay:${i * 40}ms" onclick="openCard(${c.id})">
+      <span><span class="nm">${esc(c.name)} ${c.vis === 'private' ? '<span class="lock">비공개</span>' : ''}</span><span class="pv">${esc(c.msg)}</span></span>
+      <span class="side">${stampHtml(c.stamp)}<span>${c.reply ? '<span class="chip chip-red">답장 완료</span>' : c.isNew ? 'NEW · ' + c.date : c.date}</span></span>
+    </button>`).join('');
+    const wait = CARDS.filter(c => !c.reply).length;
+    document.getElementById('cWait').textContent = wait + 4; document.getElementById('sumWait').textContent = wait + 4;
+    document.getElementById('cDone').textContent = 27 - wait - 4;
+    document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.f === filter));
+  }
+  document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { filter = b.dataset.f; renderInbox(); });
+  function openCard(id) { openId = id; location.hash = 'card'; }
+
+  function renderDetail(editing) {
+    const c = find(openId) || CARDS[0]; openId = c.id; c.isNew = false;
+    document.getElementById('cdTitle').textContent = `${c.name} 님의 엽서`;
+    document.getElementById('cdCard').innerHTML = postcard(c);
+    document.getElementById('cdMeta').innerHTML = `<span>2026년 ${c.date}에 도착</span>${c.vis === 'private' ? '<span class="chip chip-cream">비공개</span>' : '<span class="chip chip-cream">공개 · 모두의 엽서</span>'}`;
+    const area = document.getElementById('replyArea');
+    const hint = c.vis === 'public' ? '공개 엽서라 답장도 모두의 엽서에 공개돼요.' : '비공개 엽서라 보낸 친구만 볼 수 있어요.';
+    if (c.reply && !editing) {
+      area.innerHTML = `<span class="label">내 답장</span>${replyCard(c)}<div class="flip-meta"><span>${hint}</span><button class="text-link" style="padding:0" onclick="renderDetail(true)">답장 고치기</button></div>`;
+    } else {
+      area.innerHTML = `<span class="label">${c.reply ? '답장 고치기' : esc(c.name) + ' 님에게 답장'}</span>
+        <div class="pc reply"><div class="pc-head"><span class="pc-to">re. ${esc(c.name)}</span><span class="pc-corner"><span class="pc-hny" style="color:var(--ink)">with<br>love</span>${stampHtml('red')}</span></div>
+          <textarea id="replyText" class="pc-msg" maxlength="300" placeholder="고마운 마음을 담아 답장을 써 보세요">${c.reply ? esc(c.reply) : ''}</textarea>
+          <div class="pc-from">from. 세린</div><div class="pc-parade">${parade()}</div></div>
+        <div class="flip-meta"><span>${hint}</span><span id="rCount">${(c.reply || '').length} / 300</span></div>
+        <div style="display:flex;gap:10px;margin-top:16px">${c.reply ? '<button class="text-link" onclick="renderDetail(false)" style="flex:none;padding:0 12px">취소</button>' : ''}
+          <button class="ticket" id="replyBtn" ${c.reply ? '' : 'disabled'} onclick="saveReply()"><b>${c.reply ? '고친 답장 보내기' : '답장 보내기'}</b><span>→</span></button></div>`;
+      const t = document.getElementById('replyText');
+      t.oninput = () => { document.getElementById('rCount').textContent = `${t.value.length} / 300`; document.getElementById('replyBtn').disabled = !t.value.trim(); };
+    }
+  }
+  function saveReply() {
+    const c = find(openId), first = !c.reply;
+    c.reply = document.getElementById('replyText').value.trim();
+    renderDetail(false);
+    confetti(current.querySelector('.app'));
+    toast(first ? '답장을 보냈어요' : '답장을 고쳤어요');
+  }
+  function sizeToFrame(el) {
+    const inPhone = getComputedStyle(stage).overflowY === 'auto';
+    Object.assign(el.style, inPhone ? { position: 'absolute', top: stage.scrollTop + 'px', height: stage.clientHeight + 'px' } : { position: 'fixed', top: 0, height: '100vh' });
+  }
+  function openDelete() { const d = document.getElementById('delDialog'); sizeToFrame(d); d.hidden = false; }
+  function closeDelete() { document.getElementById('delDialog').hidden = true; }
+  function doDelete() { CARDS.splice(CARDS.indexOf(find(openId)), 1); closeDelete(); location.hash = 'inbox'; setTimeout(() => toast('엽서를 버렸어요'), 60); }
+  function toast(msg) {
+    document.querySelectorAll('.toast').forEach(t => t.remove());
+    const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+    current.querySelector('.app').append(t); setTimeout(() => t.remove(), 2300);
+  }
+
+  /* write */
+  let stampKey = null, vis = 'public';
+  document.getElementById('parade').innerHTML = parade();
+  document.getElementById('picker').innerHTML = Object.entries(STAMPS).map(([k, s]) =>
+    `<button type="button" class="stamp-opt" role="radio" aria-checked="false" data-k="${k}">${stampHtml(k, '')}${s.name}</button>`).join('');
+  function renderSlot() {
+    document.getElementById('slot').innerHTML = stampKey ? stampHtml(stampKey) : '<span class="pc-slot">우표를<br>붙여<br>주세요</span>';
+  }
+  renderSlot();
+  document.querySelectorAll('.stamp-opt').forEach(b => b.onclick = () => {
+    stampKey = b.dataset.k;
+    document.querySelectorAll('.stamp-opt').forEach(x => x.setAttribute('aria-checked', x === b));
+    const app = b.closest('.app'), from = b.querySelector('.stamp').getBoundingClientRect(), to = document.getElementById('slot').getBoundingClientRect(), base = app.getBoundingClientRect();
+    const ghost = document.createElement('div'); ghost.className = 'stamp-fly'; ghost.innerHTML = stampHtml(stampKey, '');
+    Object.assign(ghost.style, { left: from.left - base.left + 'px', top: from.top - base.top + 'px', width: from.width + 'px', height: from.height + 'px' });
+    ghost.firstElementChild.style.height = '100%'; app.append(ghost);
+    requestAnimationFrame(() => requestAnimationFrame(() => Object.assign(ghost.style, { left: to.left - base.left + 'px', top: to.top - base.top + 'px', width: '46px', height: '56px' })));
+    setTimeout(() => { ghost.remove(); renderSlot(); }, 520);
+    document.getElementById('wErr').textContent = '';
+  });
+  document.querySelectorAll('#vis button').forEach(b => b.onclick = () => {
+    vis = b.dataset.v; document.querySelectorAll('#vis button').forEach(x => x.setAttribute('aria-checked', x === b));
+    document.getElementById('birthWrap').classList.toggle('closed', vis === 'public');
+    document.getElementById('visNote').textContent = vis === 'public'
+      ? '공개 엽서는 누구나 볼 수 있고, 세린의 답장도 함께 공개돼요. 보낸 뒤에는 고칠 수 없어요.'
+      : '비공개 엽서는 세린과 나만 볼 수 있어요. 답장은 비밀 우체통에서 닉네임과 생일로 열어요. 보낸 뒤에는 고칠 수 없어요.';
+  });
+  document.getElementById('wBirth').addEventListener('input', e => e.target.value = e.target.value.replace(/\D/g, ''));
+  function validBirth(v) { if (!/^\d{4}$/.test(v)) return false; const m = +v.slice(0, 2), d = +v.slice(2); const max = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]; return m >= 1 && m <= 12 && d >= 1 && d <= max; }
+  function sendCard(e) {
+    e.preventDefault();
+    const n = document.getElementById('wName'), b = document.getElementById('wBirth'), m = document.getElementById('wMsg');
+    const errs = [];
+    if (!m.value.trim()) errs.push('덕담을 적어 주세요');
+    if (!n.value.trim()) errs.push('닉네임을 적어 주세요');
+    if (!stampKey) errs.push('우표를 골라 주세요');
+    if (vis === 'private' && !validBirth(b.value)) errs.push('생일을 월일 4자리로 적어 주세요 (예: 0315)');
+    document.getElementById('wErr').textContent = errs.join(' · ');
+    if (errs.length) { const comp = document.getElementById('composer'); comp.style.animation = 'none'; void comp.offsetWidth; comp.style.animation = 'shake .4s'; return false; }
+    document.getElementById('sentWho').textContent = `${n.value.trim()} · ${b.value}`;
+    document.getElementById('envMsg').textContent = m.value;
+    document.getElementById('envSeal').innerHTML = stampHtml(stampKey, '');
+    document.getElementById('envSeal').firstElementChild.style.height = '100%';
+    const ov = document.getElementById('sendOverlay'), scene = document.getElementById('envScene');
+    sizeToFrame(ov);
+    ov.hidden = false; scene.classList.remove('sending'); void scene.offsetWidth; scene.classList.add('sending');
+    const sentVis = vis;
+    setTimeout(() => { ov.hidden = true; scene.classList.remove('sending'); location.hash = 'sent'; if (sentVis === 'private') setTimeout(() => prototypeShell.setState('비공개로 보냄'), 30); }, 3000);
+    return false;
+  }
+
+  /* mailbox sign-in */
+  function openBox(e) {
+    e.preventDefault();
+    const box = document.getElementById('postbox'), tag = document.getElementById('keytag');
+    const ok = document.getElementById('mbEmail').value.trim() === 'serin@example.com' && document.getElementById('mbPw').value === 'password';
+    if (!ok) { prototypeShell.setState('열리지 않음'); [box, tag].forEach(x => { x.classList.remove('denied'); void x.offsetWidth; x.classList.add('denied'); }); return false; }
+    box.classList.add('open');
+    setTimeout(() => { box.classList.remove('open'); location.hash = 'inbox'; }, 950);
+    return false;
+  }
+  ['mbEmail', 'mbPw'].forEach(id => document.getElementById(id).addEventListener('input', () => prototypeShell.getState() !== 'Default' && prototypeShell.setState('Default')));
+
+  /* lookup */
+  function lookup(e) {
+    e.preventDefault();
+    const env = document.getElementById('lkEnv');
+    const ok = document.getElementById('lkName').value.trim() === '하늘이' && document.getElementById('lkBirth').value === '0315';
+    if (ok) { env.classList.add('opening'); setTimeout(() => { env.classList.remove('opening'); location.hash = 'my-cards'; }, 1000); }
+    else { prototypeShell.setState('찾지 못함'); env.classList.remove('denied'); void env.offsetWidth; env.classList.add('denied'); }
+    return false;
+  }
+  ['lkName', 'lkBirth'].forEach(id => document.getElementById(id).addEventListener('input', () => prototypeShell.getState() !== 'Default' && prototypeShell.setState('Default')));
+
+  function renderMine() {
+    const mine = CARDS.filter(c => c.name === '하늘이' && c.vis === 'private');
+    document.getElementById('myCards').innerHTML = mine.map((c, i) => `<div class="rise" style="animation-delay:${i * 100}ms">${flip(c,
+      `<div class="flip-meta"><span>2026년 ${c.date}에 보냄</span>${c.reply ? '<span class="chip chip-red">답장 도착</span>' : '<span class="chip chip-line">답장 기다리는 중</span>'}</div>`)}</div>`).join('');
+  }
+
+  function confetti(host) {
+    const b = document.createElement('div'); b.className = 'burst'; host.append(b);
+    const colors = ['var(--primary)', '#f3ece0', 'var(--pink)', 'var(--accent)', '#e7c57a'];
+    for (let i = 0; i < 30; i++) {
+      const a = Math.random() * Math.PI * 2, r = 110 + Math.random() * 170;
+      b.insertAdjacentHTML('beforeend', `<svg viewBox="-12 -12 24 24" style="--x:${Math.cos(a) * r}px;--y:${Math.sin(a) * r - 50}px;--r:${Math.random() * 540}deg;fill:${colors[i % 5]};animation-delay:${Math.random() * .2}s"><use href="${i % 3 ? '#spark' : '#star5'}"/></svg>`);
+    }
+    setTimeout(() => b.remove(), 2000);
+  }
+
+  window.onScreen = slug => {
+    if (slug === 'wall') renderWall();
+    if (slug === 'inbox') renderInbox();
+    if (slug === 'card') renderDetail(false);
+    if (slug === 'my-cards') renderMine();
+    if (slug === 'sent') setTimeout(() => confetti(current.querySelector('.app')), 700);
+  };
+  show(location.hash.slice(1));
+  { const st = new URLSearchParams(location.search).get('state'); if (st) prototypeShell.setState(st); }
+</script>

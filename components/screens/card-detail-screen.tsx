@@ -153,7 +153,6 @@ export function CardDetailScreen({ postcard }: { postcard: MailboxPostcard }) {
             </button>
             <Button variant="postal-danger" size="postal" disabled={pending} onClick={discard}>
               <b>버리기</b>
-              <span>✕</span>
             </Button>
           </div>
         </AlertDialogContent>

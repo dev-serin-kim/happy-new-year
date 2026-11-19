@@ -10,7 +10,7 @@
 }
 body { font-family: var(--font); }
   /* display type: Gloock for Latin/numerals, Pretendard Bold for Hangul (no faux bold on Gloock) */
-  .topbar h1, .denom-name, .l-title, .ticket b, .big-title, .empty h3, .dialog h3, .owner-sum b, .postmark-big b, .env-caption, .stamp-num, .arc-text { font-family: var(--font-display) !important; font-weight: 700 !important; font-synthesis: none; letter-spacing: -0.01em; }
+  .topbar h1, .denom-name, .l-title, .ticket b, .big-title, .empty h3, .owner-sum b, .postmark-big b, .env-caption, .stamp-num, .arc-text { font-family: var(--font-display) !important; font-weight: 700 !important; font-synthesis: none; letter-spacing: -0.01em; }
   .pc-msg { font-size: 15.5px !important; }
   .mini-pc .pc-msg { font-size: 13px !important; }
   .pc-hny { font-family: var(--font-gloock), serif !important; }
@@ -290,11 +290,14 @@ body { font-family: var(--font); }
 
 
   .dialog { background: var(--card); background-image: var(--grain); color: var(--ink); width: 100%; max-width: 480px; padding: 24px 18px 22px; animation: sheetUp .32s cubic-bezier(.2,.8,.2,1); }
-  .dialog h3 { margin: 0 0 6px; font-size: 21px; font-family: var(--font-display); font-weight: 400; }
-  .dialog p { margin: 0 0 18px; color: #5a4e48; font-size: 14.5px; line-height: 1.6; }
-  .dialog .row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
-  .dialog .ticket { --notch: var(--card); height: 52px; }
-  .plain-btn { appearance: none; border: 1.5px solid rgb(29 24 22 / 25%); background: none; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
+  .dialog h3 { margin: 0 0 8px; font-family: var(--font); font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .dialog p { margin: 0 0 22px; color: #5a4e48; font-size: 14.5px; line-height: 1.6; word-break: keep-all; }
+  .dialog .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dialog .row > * { height: 52px; border-radius: 999px; font-size: 16px; font-weight: 700; }
+  .dialog .ticket { box-shadow: none; }
+  .dialog .ticket b { font-family: var(--font) !important; font-size: 16px; }
+  .plain-btn { appearance: none; border: 1.5px solid rgb(29 24 22 / 22%); background: transparent; font: inherit; color: var(--ink); cursor: pointer; transition: background .15s; }
+  .plain-btn:hover, .plain-btn:focus-visible { background: rgb(29 24 22 / 6%); }
   @keyframes sheetUp { from { transform: translateY(100%) } }
 
   /* mailbox login */
@@ -359,7 +362,8 @@ body { font-family: var(--font); }
 /* Discard confirmation: shadcn AlertDialog shown as a bottom sheet. */
 [data-slot="alert-dialog-overlay"] { background: rgb(10 8 8 / 70%); backdrop-filter: none; }
 [data-slot="alert-dialog-content"].dialog {
-  top: auto; bottom: 0; translate: -50% 0; max-width: 480px; border-radius: 0; box-shadow: none; outline: none;
+  top: auto; bottom: 0; translate: -50% 0; max-width: 480px; border-radius: 20px 20px 0 0; box-shadow: none; outline: none;
+  padding: 28px 20px calc(20px + env(safe-area-inset-bottom));
   display: block; gap: 0; animation: sheetUp .32s cubic-bezier(.2,.8,.2,1);
 }
 .tabs button { flex: none; height: auto; border-radius: 0; }

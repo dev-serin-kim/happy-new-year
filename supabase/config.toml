@@ -1,0 +1,8 @@
+project_id = "happy-new-year"
+
+[auth]
+site_url = "https://happy-new-year-theta-ruby.vercel.app"
+additional_redirect_urls = [
+  "https://happy-new-year-theta-ruby.vercel.app/**",
+  "http://localhost:3100/**",
+]

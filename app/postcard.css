@@ -355,3 +355,13 @@ body { font-family: var(--font); }
 .sheep-wax { color: #7d1813; --sheep-detail: #7d1813; --sheep-star: #b02620; --sheep-ribbon: transparent; --sheep-horn: #7d1813; }
 
 .shaking { animation: shake .4s; }
+
+/* Discard confirmation: shadcn AlertDialog shown as a bottom sheet. */
+[data-slot="alert-dialog-overlay"] { background: rgb(10 8 8 / 70%); backdrop-filter: none; }
+[data-slot="alert-dialog-content"].dialog {
+  top: auto; bottom: 0; translate: -50% 0; max-width: 480px; border-radius: 0; box-shadow: none; outline: none;
+  display: block; gap: 0; animation: sheetUp .32s cubic-bezier(.2,.8,.2,1);
+}
+.tabs button { flex: none; height: auto; border-radius: 0; }
+.tabs button::after { opacity: 1; }
+.tabs button[aria-selected="false"]::after { display: none; }

@@ -55,7 +55,7 @@ export function InboxScreen({ postcards }: { postcards: MailboxPostcard[] }) {
             </div>
           </div>
           <Tabs defaultValue="wait" className="gap-0">
-            <TabsList variant="line" className="tabs">
+            <TabsList variant="line" className="tabs w-full justify-start">
               <TabsTrigger value="wait">
                 답장 전<span>{waiting.length}</span>
               </TabsTrigger>
